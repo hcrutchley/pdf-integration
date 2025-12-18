@@ -216,7 +216,9 @@ export default function Connections() {
                           {connection.status === 'active' ? 'Active' : 'Inactive'}
                         </p>
                         <p className="text-xs text-slate-400 dark:text-slate-500 mt-1 font-mono">
-                          {connection.api_key.substring(0, 20)}...
+                          {typeof connection.api_key === 'string'
+                            ? `${connection.api_key.substring(0, 20)}...`
+                            : ''}
                         </p>
                       </div>
                     </div>
