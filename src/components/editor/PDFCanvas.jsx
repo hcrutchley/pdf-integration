@@ -1,7 +1,10 @@
 import React, { useEffect, useRef, useState } from 'react';
-// Use the legacy build of pdf.js; let it run with a fake worker on the main thread.
-// This avoids external worker loading while still allowing rendering in the browser.
+// Use the legacy build of pdf.js and bundle the worker with Vite.
 import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf';
+import pdfWorkerSrc from 'pdfjs-dist/legacy/build/pdf.worker.js?url';
+
+// Tell pdf.js where to load its worker from (our own bundled worker file)
+pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerSrc;
 
 export default function PDFCanvas({ pdfUrl, page = 1, scale = 1, onLoad, onLoadSuccess }) {
   const canvasRef = useRef(null);
