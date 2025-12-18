@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 // Use bundled pdf.js and worker instead of loading from CDN (which fails on dynamic import)
 import * as pdfjsLib from 'pdfjs-dist/build/pdf';
-import pdfWorkerSrc from 'pdfjs-dist/build/pdf.worker.min.js?url';
+import pdfWorkerSrc from 'pdfjs-dist/build/pdf.worker.js?url';
 
 // Set worker source to the bundled worker file served from our own origin
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerSrc;
