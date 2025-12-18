@@ -1,10 +1,10 @@
 import React, { useEffect, useRef, useState } from 'react';
-// Use the legacy build of pdf.js and bundle the worker with Vite.
-import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf';
-import pdfWorkerSrc from 'pdfjs-dist/legacy/build/pdf.worker.js?url';
+// Use the standard pdf.js build and provide an explicit Worker via Vite.
+import * as pdfjsLib from 'pdfjs-dist';
+import PdfJsWorker from 'pdfjs-dist/build/pdf.worker.mjs?worker';
 
-// Tell pdf.js where to load its worker from (our own bundled worker file)
-pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerSrc;
+// Attach a worker instance so pdf.js never tries to dynamically import from a CDN.
+pdfjsLib.GlobalWorkerOptions.workerPort = new PdfJsWorker();
 
 export default function PDFCanvas({ pdfUrl, page = 1, scale = 1, onLoad, onLoadSuccess }) {
   const canvasRef = useRef(null);
