@@ -1,10 +1,10 @@
 import React, { useEffect, useRef, useState } from 'react';
-// Use bundled pdf.js and worker instead of loading from CDN (which fails on dynamic import)
-import * as pdfjsLib from 'pdfjs-dist/build/pdf';
-import pdfWorkerSrc from 'pdfjs-dist/build/pdf.worker.js?url';
+// Use the legacy build of pdf.js which works with classic workers
+import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf';
 
-// Set worker source to the bundled worker file served from our own origin
-pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerSrc;
+// Point the workerSrc to the official pdf.js CDN classic worker.
+// This avoids the dynamic import issues seen with the modern build.
+pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
 
 export default function PDFCanvas({ pdfUrl, page = 1, scale = 1, onLoad, onLoadSuccess }) {
   const canvasRef = useRef(null);
