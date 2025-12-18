@@ -29,20 +29,26 @@ export const db = {
   },
 
   async update(entityName, id, data) {
-    return apiRequest(`/api/entities/${entityName}/${id}`, {
+    return apiRequest(
+      `/api/entities/${entityName}?id=${encodeURIComponent(id)}`,
+      {
       method: "PUT",
       body: data,
-    });
+      }
+    );
   },
 
   async delete(entityName, id) {
-    return apiRequest(`/api/entities/${entityName}/${id}`, {
+    return apiRequest(
+      `/api/entities/${entityName}?id=${encodeURIComponent(id)}`,
+      {
       method: "DELETE",
-    });
+      }
+    );
   },
 
   async bulkCreate(entityName, dataArray) {
-    return apiRequest(`/api/entities/${entityName}/bulk`, {
+    return apiRequest(`/api/entities/${entityName}?bulk=1`, {
       method: "POST",
       body: { items: dataArray },
     });
