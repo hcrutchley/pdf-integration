@@ -19,7 +19,21 @@ export default function PDFCanvas({ pdfUrl, page = 1, scale = 1, onLoad, onLoadS
         setLoading(true);
         setError(null);
 
-        const pdf = await pdfjsLib.getDocument(pdfUrl).promise;
+        // For older templates that still store a direct R2 public URL,
+        // rewrite it to our same-origin proxy to avoid CORS issues.
+        let effectiveUrl = pdfUrl;
+        try {
+          const u = new URL(pdfUrl, window.location.origin);
+          if (u.hostname.endsWith(".r2.dev")) {
+            // u.pathname already starts with "/uploads/..."
+            const key = u.pathname.replace(/^\//, "");
+            effectiveUrl = `/api/files/${encodeURIComponent(key)}`;
+          }
+        } catch (_) {
+          // If pdfUrl is not a valid URL, just use it as-is.
+        }
+
+        const pdf = await pdfjsLib.getDocument(effectiveUrl).promise;
         
         if (cancelled) return;
         

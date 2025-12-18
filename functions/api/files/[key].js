@@ -4,11 +4,13 @@
 
 export async function onRequest(context) {
   const { env, params } = context;
-  const key = params.key;
-
-  if (!key) {
+  // Key is URL-encoded in the path segment, decode before using with R2
+  const rawKey = params.key;
+  if (!rawKey) {
     return new Response("Missing key", { status: 400 });
   }
+
+  const key = decodeURIComponent(rawKey);
 
   const object = await env.FILES.get(key);
   if (!object) {
