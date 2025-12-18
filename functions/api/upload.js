@@ -1,6 +1,6 @@
 // functions/api/upload.js
-
-const PUBLIC_R2_BASE_URL = "https://pub-1da2e60a80524b33b6acd5dc4fc53c9d.r2.dev"; // TODO: change this
+// Uploads a file to R2 via the FILES binding and returns a same-origin URL
+// that proxies through /api/files/:key (to avoid CORS from the public R2 domain).
 
 export async function onRequestPost(context) {
   const { env, request } = context;
@@ -22,11 +22,12 @@ export async function onRequestPost(context) {
 
   await env.FILES.put(key, arrayBuffer, {
     httpMetadata: {
-      contentType: file.type,
+      contentType: file.type || "application/octet-stream",
     },
   });
 
-  const file_url = `${PUBLIC_R2_BASE_URL}/${key}`;
+  // Return a same-origin URL that will be served by functions/api/files/[key].js
+  const file_url = `/api/files/${encodeURIComponent(key)}`;
 
-  return Response.json({ file_url }, { status: 201 });
+  return Response.json({ file_url, key }, { status: 201 });
 }
