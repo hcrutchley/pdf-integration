@@ -20,11 +20,16 @@ export default function SearchableSelect({
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
 
-  const filteredOptions = options.filter(option =>
+  // Guard against options with missing labels to avoid runtime errors
+  const safeOptions = (options || []).filter(
+    (option) => option && typeof option.label === 'string'
+  );
+
+  const filteredOptions = safeOptions.filter((option) =>
     option.label.toLowerCase().includes(search.toLowerCase())
   );
 
-  const selectedOption = options.find(opt => opt.value === value);
+  const selectedOption = safeOptions.find((opt) => opt.value === value);
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
