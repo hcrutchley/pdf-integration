@@ -1,10 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
-// Use the legacy build of pdf.js which works with classic workers
+// Use the legacy build of pdf.js; let it run with a fake worker on the main thread.
+// This avoids external worker loading while still allowing rendering in the browser.
 import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf';
-
-// Point the workerSrc to the official pdf.js CDN classic worker.
-// This avoids the dynamic import issues seen with the modern build.
-pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
 
 export default function PDFCanvas({ pdfUrl, page = 1, scale = 1, onLoad, onLoadSuccess }) {
   const canvasRef = useRef(null);
