@@ -1,0 +1,12 @@
+name = "pdf-integration-api"
+compatibility_date = "2025-01-01"
+
+# Bindings for D1 and R2 – you'll fill in real IDs/names in the dashboard.
+[[d1_databases]]
+binding = "DB"                  # used in code as env.DB
+database_name = "pdf_integration"
+database_id = "0da91ea2-b60f-492f-8755-d6fbdc4a6852"
+
+[[r2_buckets]]
+binding = "FILES"               # used in code as env.FILES
+bucket_name = "pdf-files"
