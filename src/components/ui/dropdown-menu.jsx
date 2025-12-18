@@ -1,25 +1,55 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useContext, createContext } from 'react';
+
+// Simple context-based dropdown menu that behaves like shadcn/ui:
+// - <DropdownMenu> provides open state
+// - <DropdownMenuTrigger> toggles it
+// - <DropdownMenuContent> shows when open and closes on outside click
+
+const DropdownContext = createContext(null);
 
 export function DropdownMenu({ children }) {
-  return <div className="relative inline-block text-left">{children}</div>;
+  const [open, setOpen] = useState(false);
+  return (
+    <DropdownContext.Provider value={{ open, setOpen }}>
+      <div className="relative inline-block text-left">{children}</div>
+    </DropdownContext.Provider>
+  );
 }
 
 export function DropdownMenuTrigger({ asChild, children, ...props }) {
+  const ctx = useContext(DropdownContext);
+  const handleClick = (e) => {
+    if (children && children.props && typeof children.props.onClick === 'function') {
+      children.props.onClick(e);
+    }
+    if (ctx) {
+      ctx.setOpen(!ctx.open);
+    }
+  };
+
   if (asChild && React.isValidElement(children)) {
-    return React.cloneElement(children, props);
+    return React.cloneElement(children, {
+      ...props,
+      onClick: handleClick,
+    });
   }
+
   return (
-    <button type="button" {...props}>
+    <button type="button" onClick={handleClick} {...props}>
       {children}
     </button>
   );
 }
 
 export function DropdownMenuContent({ className = '', children }) {
-  const [open, setOpen] = useState(true);
+  const ctx = useContext(DropdownContext);
   const ref = useRef(null);
 
+  const open = ctx ? ctx.open : false;
+  const setOpen = ctx ? ctx.setOpen : () => {};
+
   useEffect(() => {
+    if (!open) return;
     function handleClickOutside(event) {
       if (ref.current && !ref.current.contains(event.target)) {
         setOpen(false);
@@ -27,7 +57,7 @@ export function DropdownMenuContent({ className = '', children }) {
     }
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
+  }, [open, setOpen]);
 
   if (!open) return null;
 
@@ -45,10 +75,16 @@ export function DropdownMenuContent({ className = '', children }) {
 }
 
 export function DropdownMenuItem({ className = '', onClick, children }) {
+  const ctx = useContext(DropdownContext);
+  const handleClick = (e) => {
+    if (onClick) onClick(e);
+    if (ctx) ctx.setOpen(false);
+  };
+
   return (
     <button
       type="button"
-      onClick={onClick}
+      onClick={handleClick}
       className={[
         'w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-100',
         className,
@@ -58,6 +94,3 @@ export function DropdownMenuItem({ className = '', onClick, children }) {
     </button>
   );
 }
-
-
-
