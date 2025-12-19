@@ -14,6 +14,46 @@ export async function onRequest(context) {
   const url = new URL(request.url);
   const method = request.method.toUpperCase();
 
+  // ========== AUTHENTICATION CHECK ==========
+  // Require valid session token for all entity operations
+  const authHeader = request.headers.get("Authorization");
+  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    return Response.json(
+      { error: "Authentication required" },
+      { status: 401 }
+    );
+  }
+
+  const token = authHeader.substring(7);
+  const { results: sessions } = await env.DB.prepare(
+    "SELECT id, data FROM entities WHERE entity_name = 'Session' AND json_extract(data, '$.token') = ?"
+  )
+    .bind(token)
+    .all();
+
+  if (!sessions.length) {
+    return Response.json(
+      { error: "Invalid or expired session" },
+      { status: 401 }
+    );
+  }
+
+  const sessionData = JSON.parse(sessions[0].data);
+  if (new Date(sessionData.expires_at) < new Date()) {
+    return Response.json(
+      { error: "Session expired" },
+      { status: 401 }
+    );
+  }
+
+  // Store user info in context for potential future use
+  const currentUser = {
+    id: sessionData.user_id,
+    username: sessionData.username,
+    email: sessionData.email,
+  };
+  // ========== END AUTHENTICATION CHECK ==========
+
   // Path segments: ["", "api", "entities", ":entity", ...]
   const parts = url.pathname.split("/");
   const entityName = parts[3] || "";
