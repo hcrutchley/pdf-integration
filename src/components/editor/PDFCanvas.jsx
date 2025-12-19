@@ -1,10 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
-// Use the standard pdf.js build and provide an explicit Worker via Vite.
 import * as pdfjsLib from 'pdfjs-dist';
-import PdfJsWorker from 'pdfjs-dist/build/pdf.worker.mjs?worker';
+import workerSrc from 'pdfjs-dist/build/pdf.worker.mjs?url';
 
-// Attach a worker instance so pdf.js never tries to dynamically import from a CDN.
-pdfjsLib.GlobalWorkerOptions.workerPort = new PdfJsWorker();
+pdfjsLib.GlobalWorkerOptions.workerSrc = workerSrc;
 
 export default function PDFCanvas({ pdfUrl, page = 1, scale = 1, onLoad, onLoadSuccess }) {
   const canvasRef = useRef(null);
@@ -13,6 +11,7 @@ export default function PDFCanvas({ pdfUrl, page = 1, scale = 1, onLoad, onLoadS
   const loadingTaskRef = useRef(null);
   const renderTaskRef = useRef(null);
   const pageRef = useRef(null);
+  const retriedRef = useRef(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -30,19 +29,17 @@ export default function PDFCanvas({ pdfUrl, page = 1, scale = 1, onLoad, onLoadS
           loadingTaskRef.current = null;
         }
 
-        // For older templates that still store a direct R2 public URL,
-        // rewrite it to our same-origin proxy to avoid CORS issues.
         let effectiveUrl = pdfUrl;
         try {
           const u = new URL(pdfUrl, window.location.origin);
           if (u.hostname.endsWith(".r2.dev")) {
-            // u.pathname already starts with "/uploads/..."
             const key = u.pathname.replace(/^\//, "");
             effectiveUrl = `/api/files/${encodeURIComponent(key)}`;
           }
         } catch (_) {
-          // If pdfUrl is not a valid URL, just use it as-is.
         }
+
+        pdfjsLib.GlobalWorkerOptions.workerSrc = workerSrc;
 
         const task = pdfjsLib.getDocument({ url: effectiveUrl });
         loadingTaskRef.current = task;
@@ -84,6 +81,18 @@ export default function PDFCanvas({ pdfUrl, page = 1, scale = 1, onLoad, onLoadS
       } catch (err) {
         if (!cancelled) {
           console.error('PDF loading error:', err);
+          if (!retriedRef.current && String(err?.message || '').toLowerCase().includes('worker was terminated')) {
+            retriedRef.current = true;
+            try {
+              pdfjsLib.GlobalWorkerOptions.workerSrc = workerSrc;
+            } catch (_) {}
+            setTimeout(() => {
+              if (!cancelled && pdfUrl) {
+                loadPDF();
+              }
+            }, 0);
+            return;
+          }
           setError(err.message);
           setLoading(false);
         }
