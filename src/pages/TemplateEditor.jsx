@@ -318,12 +318,11 @@ export default function TemplateEditor() {
       // 3. Sanitize: Remove readonly fields that shouldn't be sent back
       // This helps prevent 502 errors if the backend chokes on them
       const { id, created_date, updated_date, ...sanitizedData } = fullData;
-      console.log('[handleSave] sanitizedData sent to server:', sanitizedData);
 
-      // Optimistically update the UI immediately
+      // Optimistically update the UI immediately using the full, corrected data
       queryClient.setQueryData(['template', templateId], (prev) => ({
         ...prev,
-        ...updates
+        ...sanitizedData
       }));
 
       // 4. Send the sanitized full object
