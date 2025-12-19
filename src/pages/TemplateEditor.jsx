@@ -201,10 +201,10 @@ export default function TemplateEditor() {
       f.id === fieldId ? { ...f, ...updates } : f
     );
     // Optimistically update the UI immediately
-    queryClient.setQueryData(['template', templateId], {
-      ...template,
+    queryClient.setQueryData(['template', templateId], (prev) => ({
+      ...prev,
       fields: updatedFields
-    });
+    }));
 
     // Skip save during active dragging/resizing for performance
     if (skipSave) return;
@@ -225,10 +225,10 @@ export default function TemplateEditor() {
   const handleDeleteField = (fieldId) => {
     const updatedFields = template.fields.filter(f => f.id !== fieldId);
     // Optimistically update UI
-    queryClient.setQueryData(['template', templateId], {
-      ...template,
+    queryClient.setQueryData(['template', templateId], (prev) => ({
+      ...prev,
       fields: updatedFields
-    });
+    }));
     if (selectedField?.id === fieldId) {
       setSelectedField(null);
     }
@@ -242,20 +242,20 @@ export default function TemplateEditor() {
   const handleAddField = (newField) => {
     const updatedFields = [...(template.fields || []), newField];
     // Optimistically update the UI
-    queryClient.setQueryData(['template', templateId], {
-      ...template,
+    queryClient.setQueryData(['template', templateId], (prev) => ({
+      ...prev,
       fields: updatedFields
-    });
+    }));
     updateMutation.mutate({ fields: updatedFields });
   };
 
   const handleBulkFieldAdd = (newFields) => {
     const updatedFields = [...(template.fields || []), ...newFields];
     // Optimistically update the UI
-    queryClient.setQueryData(['template', templateId], {
-      ...template,
+    queryClient.setQueryData(['template', templateId], (prev) => ({
+      ...prev,
       fields: updatedFields
-    });
+    }));
     updateMutation.mutate({ fields: updatedFields });
   };
 
