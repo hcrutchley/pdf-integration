@@ -62,14 +62,11 @@ export default function TemplateEditor() {
 
   const updateMutation = useMutation({
     mutationFn: (data) => db.templates.update(templateId, data),
-    onSuccess: (returnedData) => {
-      // Use the merged data returned by the API to update cache directly
-      // This avoids refetching potentially stale data from the server
-      queryClient.setQueryData(['template', templateId], (prev) => ({
-        ...prev,
-        ...returnedData
-      }));
+    onSuccess: () => {
+      // Just invalidate and refetch to ensure we have the absolute source of truth
+      // relying on the optimistic update in handleSave for immediate UI feedback
       queryClient.invalidateQueries(['templates']);
+      queryClient.invalidateQueries(['template', templateId]);
       toast.success('Template saved successfully');
     }
   });
@@ -305,6 +302,12 @@ export default function TemplateEditor() {
         ...template, // Use current UI state as base (in case of unsaved changes)
         ...updates   // Apply the new updates on top
       };
+
+      // CRITICAL: Ensure `pdf_url` is never lost. 
+      // If `template` somehow effectively deleted it (undefined), restore it from `latestTemplate`.
+      if (!fullData.pdf_url && latestTemplate.pdf_url) {
+        fullData.pdf_url = latestTemplate.pdf_url;
+      }
 
       // 3. Sanitize: Remove readonly fields that shouldn't be sent back
       // This helps prevent 502 errors if the backend chokes on them
