@@ -39,9 +39,9 @@ const getFieldIcon = (type) => {
 
 const SNAP_THRESHOLD = 5;
 
-export default function PDFViewer({ 
-  pdfUrl, 
-  fields = [], 
+export default function PDFViewer({
+  pdfUrl,
+  fields = [],
   onFieldUpdate,
   onFieldDelete,
   onFieldAdd,
@@ -115,7 +115,7 @@ export default function PDFViewer({
       // During drag/resize, don't sync from props
       return;
     }
-    
+
     // Merge dragged positions with props, clear cache for fields that match
     if (Object.keys(draggedFieldsCache.current).length > 0) {
       console.log('[EFFECT] Merging cached positions with props');
@@ -143,7 +143,7 @@ export default function PDFViewer({
       setLocalGuides(guides);
     }
   }, [guides, draggingGuide]);
-  
+
   useEffect(() => {
     if (onGuidesChange) {
       onGuidesChange(guides);
@@ -182,7 +182,7 @@ export default function PDFViewer({
 
     for (const other of localFields) {
       if (other.id === field.id || (other.page || 1) !== currentPage) continue;
-      
+
       // Left edge
       if (Math.abs(newX - other.x) < SNAP_THRESHOLD / scale) {
         snappedX = other.x;
@@ -224,14 +224,14 @@ export default function PDFViewer({
   const handleMouseDown = (e, field, action, corner = null) => {
     e.stopPropagation();
     if (mode !== 'field') return;
-    
+
     // Track mouse position to detect click vs drag
     const mouseDownPos = { x: e.clientX, y: e.clientY };
-    
+
     // Handle multi-select first
     const isShiftPressed = e.shiftKey;
     let newSelectedFields = [...selectedFields];
-    
+
     if (isShiftPressed) {
       // Shift-click: toggle field in selection
       if (selectedFields.includes(field.id)) {
@@ -254,12 +254,12 @@ export default function PDFViewer({
     if (action === 'drag' && selectedFields.length > 1 && selectedFields.includes(field.id)) {
       setDragging(prev => ({ ...prev, mouseDownPos }));
     }
-    
+
     if (action === 'drag') {
       // Use current selectedFields state for accurate multi-select detection
       const currentSelection = selectedFields.includes(field.id) ? selectedFields : newSelectedFields;
       const isMultiSelect = currentSelection.length > 1;
-      
+
       // Store initial positions for ALL selected fields (from props.fields for accuracy)
       initialFieldPositions.current = {};
       currentSelection.forEach(id => {
@@ -268,12 +268,12 @@ export default function PDFViewer({
           initialFieldPositions.current[id] = { x: f.x, y: f.y };
         }
       });
-      
+
       console.log(`[DRAG START] Primary: ${field.id}, Multi: ${isMultiSelect}, All: [${currentSelection.join(', ')}]`);
-      
-      setDragging({ 
-        fieldId: field.id, 
-        startX: e.clientX, 
+
+      setDragging({
+        fieldId: field.id,
+        startX: e.clientX,
         startY: e.clientY,
         initialX: field.x,
         initialY: field.y,
@@ -289,10 +289,10 @@ export default function PDFViewer({
         mouseDownPos
       });
     } else if (action === 'resize') {
-      setResizing({ 
-        fieldId: field.id, 
+      setResizing({
+        fieldId: field.id,
         corner,
-        startX: e.clientX, 
+        startX: e.clientX,
         startY: e.clientY,
         initialX: field.x,
         initialY: field.y,
@@ -304,13 +304,13 @@ export default function PDFViewer({
 
   const handleMouseMove = useCallback((e) => {
     if (rafRef.current) return; // Skip if already processing
-    
+
     rafRef.current = requestAnimationFrame(() => {
       if (dragging) {
         // Check if Caps Lock is on for precision mode
         const isPrecisionKey = e.getModifierState && e.getModifierState('CapsLock');
         let deltaX, deltaY;
-        
+
         if (isPrecisionKey && !dragging.precisionMode) {
           // Just started precision mode - switch from current position
           setDragging(prev => ({
@@ -342,10 +342,10 @@ export default function PDFViewer({
           deltaX = (e.clientX - dragging.startX) / scale;
           deltaY = (e.clientY - dragging.startY) / scale;
         }
-        
+
         const baseX = dragging.precisionMode ? dragging.precisionBaseX : dragging.initialX;
         const baseY = dragging.precisionMode ? dragging.precisionBaseY : dragging.initialY;
-        
+
         setLocalFields(prev => {
           if (dragging.multiSelect && selectedFields.length > 1) {
             // Multi-select: apply the same delta to ALL selected fields
@@ -353,7 +353,7 @@ export default function PDFViewer({
               if (!selectedFields.includes(f.id)) return f;
               const initial = initialFieldPositions.current[f.id];
               if (!initial) return f;
-              
+
               return {
                 ...f,
                 x: initial.x + deltaX,
@@ -364,20 +364,20 @@ export default function PDFViewer({
             // Move single field with snapping
             return prev.map(f => {
               if (f.id !== dragging.fieldId) return f;
-              
+
               let newX = baseX + (dragging.constrainY ? 0 : deltaX);
               let newY = baseY + (dragging.constrainX ? 0 : deltaY);
-              
+
               // Only snap if not in precision mode and close enough
               if (!dragging.precisionMode) {
                 const snapped = snapToFields(f, newX, newY, f.width, f.height);
                 const xSnap = snapToGuides(snapped.x, true);
                 const ySnap = snapToGuides(snapped.y, false);
-                
+
                 newX = xSnap.didSnap ? xSnap.snapped : snapped.x;
                 newY = ySnap.didSnap ? ySnap.snapped : snapped.y;
               }
-              
+
               return { ...f, x: newX, y: newY };
             });
           }
@@ -541,7 +541,7 @@ export default function PDFViewer({
         } else {
           // Single guide drag
           const rect = pdfContainerRef.current.getBoundingClientRect();
-          const pos = draggingGuide.type === 'vertical' 
+          const pos = draggingGuide.type === 'vertical'
             ? (e.clientX - rect.left) / scale
             : (e.clientY - rect.top) / scale;
 
@@ -559,15 +559,15 @@ export default function PDFViewer({
         const rect = pdfContainerRef.current.getBoundingClientRect();
         const currentX = (e.clientX - rect.left) / scale;
         const currentY = (e.clientY - rect.top) / scale;
-        
+
         setBoxSelect(prev => ({ ...prev, currentX, currentY }));
-        
+
         // Select items within box based on mode
         const minX = Math.min(boxSelect.startX, currentX);
         const maxX = Math.max(boxSelect.startX, currentX);
         const minY = Math.min(boxSelect.startY, currentY);
         const maxY = Math.max(boxSelect.startY, currentY);
-        
+
         if (mode === 'field') {
           const fieldsInBox = localFields
             .filter(f => (f.page || 1) === currentPage)
@@ -596,22 +596,22 @@ export default function PDFViewer({
           setSelectedGuides(guidesInBox);
         }
       }
-      
+
       rafRef.current = null;
     });
   }, [dragging, resizing, draggingGuide, boxSelect, localFields, localGuides, selectedFields, selectedGuides, scale, snapToFields, snapToGuides, currentPage, mode]);
 
   const handleMouseUp = (e) => {
     let madeChanges = false;
-    
+
     if (dragging || resizing) {
       setSnapLines({ vertical: [], horizontal: [] });
-      
+
       // Check if this was a click (no movement) on multi-selected field
       if (dragging?.multiSelect && selectedFields.length > 1 && dragging.mouseDownPos) {
         const deltaX = Math.abs(e.clientX - dragging.mouseDownPos.x);
         const deltaY = Math.abs(e.clientY - dragging.mouseDownPos.y);
-        
+
         // If movement is less than 3 pixels, treat as click
         if (deltaX < 3 && deltaY < 3) {
           // Select only the clicked field
@@ -626,11 +626,11 @@ export default function PDFViewer({
           return; // Don't save changes
         }
       }
-      
+
       if (dragging?.multiSelect && selectedFields.length > 1) {
         // Cache positions and batch update
         console.log('[DRAG END] Caching multi-select positions');
-        
+
         selectedFields.forEach(fieldId => {
           const field = localFields.find(f => f.id === fieldId);
           if (field) {
@@ -638,12 +638,12 @@ export default function PDFViewer({
             draggedFieldsCache.current[fieldId] = { x: field.x, y: field.y };
           }
         });
-        
+
         // Single batch update after clearing drag
         setDragging(null);
         setResizing(null);
         initialFieldPositions.current = {};
-        
+
         // Now update parent in one go
         setTimeout(() => {
           selectedFields.forEach(fieldId => {
@@ -669,18 +669,18 @@ export default function PDFViewer({
         madeChanges = true;
       }
     }
-    
+
     if (draggingGuide) {
       setGuides(localGuides);
       setDraggingGuide(null);
       initialGuidePositions.current = {};
       madeChanges = true;
     }
-    
+
     if (madeChanges) {
       saveToHistory();
     }
-    
+
     if (boxSelect) {
       // Check if it was a click (very small box) - if so, clear selection
       const width = Math.abs(boxSelect.currentX - boxSelect.startX);
@@ -705,9 +705,9 @@ export default function PDFViewer({
     e.stopPropagation();
     e.preventDefault();
     const guide = { type, index, position: type === 'vertical' ? localGuides.vertical[index] : localGuides.horizontal[index] };
-    
+
     console.log(`[GUIDE] MouseDown on ${type} guide ${index}, shift=${e.shiftKey}`);
-    
+
     if (e.shiftKey) {
       // Shift-click: toggle in selection
       setSelectedGuides(prev => {
@@ -719,20 +719,20 @@ export default function PDFViewer({
     } else {
       // Regular click: if already selected with others, start multi-drag, otherwise make single selection
       const alreadySelected = selectedGuides.find(g => g.type === type && g.index === index);
-      
+
       let currentSelection = selectedGuides;
       if (!alreadySelected) {
         currentSelection = [guide];
         setSelectedGuides(currentSelection);
       }
-      
+
       // Store initial positions for all selected guides
       initialGuidePositions.current = {};
       currentSelection.forEach(g => {
         const pos = g.type === 'vertical' ? localGuides.vertical[g.index] : localGuides.horizontal[g.index];
         initialGuidePositions.current[`${g.type}-${g.index}`] = pos;
       });
-      
+
       const isMultiSelect = currentSelection.length > 1;
       console.log(`[GUIDE] ${isMultiSelect ? 'Multi' : 'Single'} select and drag with ${currentSelection.length} guides`);
       setDraggingGuide({ type, index, multiSelect: isMultiSelect, startX: e.clientX, startY: e.clientY });
@@ -787,7 +787,7 @@ export default function PDFViewer({
     const last = fields[fields.length - 1];
     const totalSpace = (last.x + last.width) - first.x;
     const spacing = (totalSpace - fields.reduce((sum, f) => sum + f.width, 0)) / (fields.length - 1);
-    
+
     let currentX = first.x + first.width + spacing;
     for (let i = 1; i < fields.length - 1; i++) {
       onFieldUpdate(fields[i].id, { x: currentX });
@@ -802,7 +802,7 @@ export default function PDFViewer({
     const last = fields[fields.length - 1];
     const totalSpace = (last.y + last.height) - first.y;
     const spacing = (totalSpace - fields.reduce((sum, f) => sum + f.height, 0)) / (fields.length - 1);
-    
+
     let currentY = first.y + first.height + spacing;
     for (let i = 1; i < fields.length - 1; i++) {
       onFieldUpdate(fields[i].id, { y: currentY });
@@ -816,7 +816,7 @@ export default function PDFViewer({
     const first = vGuides[0].position;
     const last = vGuides[vGuides.length - 1].position;
     const spacing = (last - first) / (vGuides.length - 1);
-    
+
     const newGuides = { ...guides };
     for (let i = 1; i < vGuides.length - 1; i++) {
       newGuides.vertical[vGuides[i].index] = first + spacing * i;
@@ -830,7 +830,7 @@ export default function PDFViewer({
     const first = hGuides[0].position;
     const last = hGuides[hGuides.length - 1].position;
     const spacing = (last - first) / (hGuides.length - 1);
-    
+
     const newGuides = { ...guides };
     for (let i = 1; i < hGuides.length - 1; i++) {
       newGuides.horizontal[hGuides[i].index] = first + spacing * i;
@@ -853,36 +853,36 @@ export default function PDFViewer({
       console.log('[CASCADE] No fields selected');
       return;
     }
-    
+
     // Get the first selected field as template
     const templateField = localFields.find(f => f.id === selectedFields[0]);
     if (!templateField) {
       console.log('[CASCADE] Template field not found');
       return;
     }
-    
+
     // Find all horizontal guides below this field
     const fieldBottom = templateField.y + templateField.height;
     const guidesBelow = localGuides.horizontal
       .filter(g => g >= fieldBottom)
       .sort((a, b) => a - b);
-    
+
     console.log('[CASCADE] Template field Y:', templateField.y, 'bottom:', fieldBottom);
     console.log('[CASCADE] Guides below field:', guidesBelow);
-    
+
     if (guidesBelow.length === 0) {
       alert('No horizontal guides found below the selected field. Create guides first by right-clicking the field and selecting "Create Horizontal Guides", then cascade those guides.');
       return;
     }
-    
+
     const baseTimestamp = Date.now();
     const newFields = [];
-    
+
     // Create one field at each guide position, snapping height to next guide if available
     guidesBelow.forEach((guideY, i) => {
       const nextGuide = guidesBelow[i + 1];
       const height = nextGuide ? nextGuide - guideY : templateField.height;
-      
+
       const newField = {
         ...templateField,
         id: `field_${baseTimestamp}_${i}_${Math.random().toString(36).substr(2, 9)}`,
@@ -893,9 +893,9 @@ export default function PDFViewer({
       };
       newFields.push(newField);
     });
-    
+
     console.log('[CASCADE] Creating', newFields.length, 'new fields');
-    
+
     // Use bulk add if available, otherwise fall back to individual adds
     if (onBulkFieldAdd) {
       onBulkFieldAdd(newFields);
@@ -907,11 +907,11 @@ export default function PDFViewer({
   const cascadeGuides = (count, type) => {
     const filtered = selectedGuides.filter(g => g.type === type).sort((a, b) => a.position - b.position);
     if (filtered.length < 2) return;
-    
+
     // Use distance between first 2 guides as the spacing
     const spacing = filtered[1].position - filtered[0].position;
     const lastPos = filtered[filtered.length - 1].position;
-    
+
     const newGuides = { ...guides };
     // Create 'count' extra guides after the last selected one
     for (let i = 1; i <= count; i++) {
@@ -947,13 +947,13 @@ export default function PDFViewer({
     for (let i = 0; i < horizontalGuides.length - 1; i++) {
       const y = horizontalGuides[i];
       const height = horizontalGuides[i + 1] - y;
-      
+
       if (verticalGuides.length >= 2) {
         // Create fields between consecutive vertical guides for this row
         for (let j = 0; j < verticalGuides.length - 1; j++) {
           const x = verticalGuides[j];
           const width = verticalGuides[j + 1] - x;
-          
+
           newFields.push({
             id: `field_${baseTimestamp}_${i}_${j}_${Math.random().toString(36).substr(2, 9)}`,
             label: `Field ${i + 1}-${j + 1}`,
@@ -975,7 +975,7 @@ export default function PDFViewer({
         // Just create one field per row, full width or default width
         const x = verticalGuides.length === 1 ? verticalGuides[0] : 50;
         const width = verticalGuides.length === 1 ? 512 : 200;
-        
+
         newFields.push({
           id: `field_${baseTimestamp}_${i}_${Math.random().toString(36).substr(2, 9)}`,
           label: `Field ${i + 1}`,
@@ -996,7 +996,7 @@ export default function PDFViewer({
     }
 
     console.log('[FILL FIELDS] Creating', newFields.length, 'fields from guides');
-    
+
     if (onBulkFieldAdd) {
       onBulkFieldAdd(newFields);
     } else {
@@ -1007,15 +1007,15 @@ export default function PDFViewer({
 
   const mergeFields = () => {
     if (selectedFields.length < 2) return;
-    
+
     const fieldsToMerge = selectedFields.map(id => localFields.find(f => f.id === id)).filter(Boolean);
-    
+
     // Calculate bounding box
     const minX = Math.min(...fieldsToMerge.map(f => f.x));
     const minY = Math.min(...fieldsToMerge.map(f => f.y));
     const maxX = Math.max(...fieldsToMerge.map(f => f.x + f.width));
     const maxY = Math.max(...fieldsToMerge.map(f => f.y + f.height));
-    
+
     const mergedField = {
       ...fieldsToMerge[0],
       id: `field_${Date.now()}`,
@@ -1026,11 +1026,11 @@ export default function PDFViewer({
       height: maxY - minY,
       airtable_field: null
     };
-    
+
     // Remove old fields and add merged one
     const remainingFields = localFields.filter(f => !selectedFields.includes(f.id));
     const updatedFields = [...remainingFields, mergedField];
-    
+
     queryClient.setQueryData(['template', templateId], {
       ...template,
       fields: updatedFields
@@ -1049,7 +1049,7 @@ export default function PDFViewer({
 
   const executeSplit = (field, splitPos) => {
     const isVertical = splitMode.orientation === 'vertical';
-    
+
     const field1 = {
       ...field,
       id: `field_${Date.now()}_1`,
@@ -1058,7 +1058,7 @@ export default function PDFViewer({
       height: isVertical ? field.height : splitPos - field.y,
       airtable_field: null
     };
-    
+
     const field2 = {
       ...field,
       id: `field_${Date.now()}_2`,
@@ -1069,10 +1069,10 @@ export default function PDFViewer({
       height: isVertical ? field.height : (field.y + field.height) - splitPos,
       airtable_field: null
     };
-    
+
     const remainingFields = localFields.filter(f => f.id !== field.id);
     const updatedFields = [...remainingFields, field1, field2];
-    
+
     queryClient.setQueryData(['template', templateId], {
       ...template,
       fields: updatedFields
@@ -1099,7 +1099,7 @@ export default function PDFViewer({
 
   const pasteFields = () => {
     if (clipboard.length === 0) return;
-    
+
     clipboard.forEach(field => {
       const newField = {
         ...field,
@@ -1131,12 +1131,12 @@ export default function PDFViewer({
     if (historyIndex > 0) {
       const newIndex = historyIndex - 1;
       const snapshot = history[newIndex];
-      
+
       setLocalFields(snapshot.fields);
       setLocalGuides(snapshot.guides);
       setGuides(snapshot.guides);
       setHistoryIndex(newIndex);
-      
+
       // Sync to parent
       queryClient.setQueryData(['template', templateId], {
         ...template,
@@ -1151,12 +1151,12 @@ export default function PDFViewer({
     if (historyIndex < history.length - 1) {
       const newIndex = historyIndex + 1;
       const snapshot = history[newIndex];
-      
+
       setLocalFields(snapshot.fields);
       setLocalGuides(snapshot.guides);
       setGuides(snapshot.guides);
       setHistoryIndex(newIndex);
-      
+
       // Sync to parent
       queryClient.setQueryData(['template', templateId], {
         ...template,
@@ -1189,30 +1189,30 @@ export default function PDFViewer({
       const getShortcutKey = (action) => shortcuts[action] || null;
 
       // Check if pressed key matches a shortcut
-      const pressedKey = (e.ctrlKey || e.metaKey ? 'Ctrl+' : '') + 
-                         (e.shiftKey ? 'Shift+' : '') + 
-                         (e.altKey ? 'Alt+' : '') + 
-                         e.key.toUpperCase();
+      const pressedKey = (e.ctrlKey || e.metaKey ? 'Ctrl+' : '') +
+        (e.shiftKey ? 'Shift+' : '') +
+        (e.altKey ? 'Alt+' : '') +
+        e.key.toUpperCase();
 
       // Grid Fill (Ctrl+F default)
-      if ((getShortcutKey('gridFill') === pressedKey || (!getShortcutKey('gridFill') && e.ctrlKey && e.key === 'f')) 
-          && selectedGuides.length >= 2 && mode === 'guide') {
+      if ((getShortcutKey('gridFill') === pressedKey || (!getShortcutKey('gridFill') && e.ctrlKey && e.key === 'f'))
+        && selectedGuides.length >= 2 && mode === 'guide') {
         e.preventDefault();
         fillFieldsFromGuides();
         return;
       }
 
       // Merge (M default)
-      if ((getShortcutKey('merge') === pressedKey || (!getShortcutKey('merge') && e.key === 'm' && !e.ctrlKey && !e.altKey)) 
-          && selectedFields.length >= 2 && mode === 'field') {
+      if ((getShortcutKey('merge') === pressedKey || (!getShortcutKey('merge') && e.key === 'm' && !e.ctrlKey && !e.altKey))
+        && selectedFields.length >= 2 && mode === 'field') {
         e.preventDefault();
         mergeFields();
         return;
       }
 
       // Split (S default)
-      if ((getShortcutKey('split') === pressedKey || (!getShortcutKey('split') && e.key === 's' && !e.ctrlKey && !e.altKey)) 
-          && selectedFields.length === 1 && mode === 'field' && !splitMode) {
+      if ((getShortcutKey('split') === pressedKey || (!getShortcutKey('split') && e.key === 's' && !e.ctrlKey && !e.altKey))
+        && selectedFields.length === 1 && mode === 'field' && !splitMode) {
         e.preventDefault();
         startSplitMode();
         return;
@@ -1283,7 +1283,7 @@ export default function PDFViewer({
               const deltaX = e.key === 'ArrowLeft' ? -step : e.key === 'ArrowRight' ? step : 0;
               const deltaY = e.key === 'ArrowUp' ? -step : e.key === 'ArrowDown' ? step : 0;
 
-              setLocalFields(prev => prev.map(f => 
+              setLocalFields(prev => prev.map(f =>
                 selectedFields.includes(f.id) ? { ...f, x: f.x + deltaX, y: f.y + deltaY } : f
               ));
 
@@ -1349,8 +1349,8 @@ export default function PDFViewer({
           });
           updateMutation.mutate({ fields: remainingFields });
           setSelectedFields([]);
-          }
-          } else if (e.ctrlKey || e.metaKey) {
+        }
+      } else if (e.ctrlKey || e.metaKey) {
         if (e.key === 'z' && !e.shiftKey) {
           e.preventDefault();
           handleUndo();
@@ -1399,13 +1399,13 @@ export default function PDFViewer({
         clearInterval(arrowKeyHoldRef.current.interval);
       }
     };
-    }, [selectedGuides, selectedFields, mode, localFields, clipboard, historyIndex, history]);
+  }, [selectedGuides, selectedFields, mode, localFields, clipboard, historyIndex, history]);
 
-  const currentPageFields = useMemo(() => 
+  const currentPageFields = useMemo(() =>
     localFields.filter(f => (f.page || 1) === currentPage),
     [localFields, currentPage]
   );
-  
+
   const getFontStyle = (field) => ({
     fontFamily: field.font || 'Arial',
     fontWeight: field.bold ? 'bold' : 'normal',
@@ -1419,20 +1419,20 @@ export default function PDFViewer({
     <div className="flex flex-col h-full">
       <div className="p-3 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between bg-white dark:bg-slate-800 shadow-sm">
         <div className="flex gap-2">
-          <Button 
-            onClick={() => setMode('field')} 
-            size="sm" 
+          <Button
+            onClick={() => setMode('field')}
+            size="sm"
             variant={mode === 'field' ? 'default' : 'outline'}
             className={mode === 'field' ? 'bg-teal-600 hover:bg-teal-700 shadow-sm' : ''}
           >
             <Hand className="h-4 w-4 mr-1.5" />
             <span className="font-medium">Fields</span>
           </Button>
-          <Button 
+          <Button
             onClick={() => {
               if (!guidesLocked) setMode('guide');
             }}
-            size="sm" 
+            size="sm"
             variant={mode === 'guide' ? 'default' : 'outline'}
             className={mode === 'guide' ? 'bg-teal-600 hover:bg-teal-700 shadow-sm' : ''}
             disabled={guidesLocked}
@@ -1440,33 +1440,33 @@ export default function PDFViewer({
             <Grid className="h-4 w-4 mr-1.5" />
             <span className="font-medium">Guides</span>
           </Button>
-          
+
           <div className="h-6 w-px bg-slate-200 dark:bg-slate-700 mx-1" />
-          
-          <Button 
-            onClick={() => setGuidesVisible(!guidesVisible)} 
-            size="sm" 
+
+          <Button
+            onClick={() => setGuidesVisible(!guidesVisible)}
+            size="sm"
             variant="outline"
             title={guidesVisible ? 'Hide Guides (G)' : 'Show Guides (G)'}
             className="transition-all"
           >
             {guidesVisible ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
           </Button>
-          <Button 
+          <Button
             onClick={() => {
               setGuidesLocked(!guidesLocked);
               if (!guidesLocked && mode === 'guide') setMode('field');
             }}
-            size="sm" 
+            size="sm"
             variant="outline"
             title={guidesLocked ? 'Unlock Guides (L)' : 'Lock Guides (L)'}
             className="transition-all"
           >
             {guidesLocked ? <Lock className="h-4 w-4" /> : <Unlock className="h-4 w-4" />}
           </Button>
-          
+
           <div className="h-6 w-px bg-slate-200 dark:bg-slate-700 mx-1" />
-          
+
           {mode === 'guide' && (
             <>
               <Button onClick={() => handleAddGuide('vertical')} size="sm" variant="outline" className="transition-all hover:bg-teal-50 dark:hover:bg-teal-900/20">
@@ -1488,9 +1488,9 @@ export default function PDFViewer({
         </div>
         <div className="flex items-center gap-4">
           {(selectedFields.length > 0 || selectedGuides.length > 0) && (
-            <div className="text-sm font-medium text-teal-700 dark:text-teal-300 bg-teal-50 dark:bg-teal-900/20 px-3 py-1.5 rounded-md border border-teal-200 dark:border-teal-800 shadow-sm animate-in fade-in zoom-in duration-200">
-              {selectedFields.length > 0 ? `${selectedFields.length} field${selectedFields.length > 1 ? 's' : ''} selected` : 
-               `${selectedGuides.length} guide${selectedGuides.length > 1 ? 's' : ''} selected`}
+            <div className="text-sm font-medium text-teal-700 dark:text-teal-300 bg-teal-50 dark:bg-teal-900/20 px-3 py-1.5 rounded-md border border-teal-200 dark:border-teal-800 shadow-sm animate-in fade-in zoom-in duration-200 whitespace-nowrap">
+              {selectedFields.length > 0 ? `${selectedFields.length} field${selectedFields.length > 1 ? 's' : ''} selected` :
+                `${selectedGuides.length} guide${selectedGuides.length > 1 ? 's' : ''} selected`}
             </div>
           )}
           <div className="flex items-center gap-2">
@@ -1528,226 +1528,226 @@ export default function PDFViewer({
         </div>
       </div>
 
-      <div 
+      <div
         ref={containerRef}
         className="flex-1 overflow-auto bg-slate-100 dark:bg-slate-900 p-4"
         onContextMenu={(e) => e.preventDefault()}
       >
-        <div 
-        ref={pdfContainerRef}
-        className="pdf-container relative mx-auto bg-white shadow-lg border border-slate-300 select-none"
-        style={{ 
-          width: `${612 * scale}px`,
-          height: `${792 * scale}px`,
-          userSelect: 'none',
-          WebkitUserSelect: 'none',
-          MozUserSelect: 'none',
-          msUserSelect: 'none'
-        }}
-        onMouseDown={(e) => {
-          // Allow box select on background, canvas, or wrapper - but not on fields/guides
-          if (e.target === pdfContainerRef.current || 
-              e.target.tagName === 'CANVAS' || 
+        <div
+          ref={pdfContainerRef}
+          className="pdf-container relative mx-auto bg-white shadow-lg border border-slate-300 select-none"
+          style={{
+            width: `${612 * scale}px`,
+            height: `${792 * scale}px`,
+            userSelect: 'none',
+            WebkitUserSelect: 'none',
+            MozUserSelect: 'none',
+            msUserSelect: 'none'
+          }}
+          onMouseDown={(e) => {
+            // Allow box select on background, canvas, or wrapper - but not on fields/guides
+            if (e.target === pdfContainerRef.current ||
+              e.target.tagName === 'CANVAS' ||
               e.target.classList.contains('pdf-canvas-layer')) {
-            const rect = pdfContainerRef.current.getBoundingClientRect();
-            const startX = (e.clientX - rect.left) / scale;
-            const startY = (e.clientY - rect.top) / scale;
-            setBoxSelect({ startX, startY, currentX: startX, currentY: startY });
-          }
-        }}
-        onMouseMove={(e) => {
-          if (splitMode) {
+              const rect = pdfContainerRef.current.getBoundingClientRect();
+              const startX = (e.clientX - rect.left) / scale;
+              const startY = (e.clientY - rect.top) / scale;
+              setBoxSelect({ startX, startY, currentX: startX, currentY: startY });
+            }
+          }}
+          onMouseMove={(e) => {
+            if (splitMode) {
+              const rect = pdfContainerRef.current.getBoundingClientRect();
+              const mouseX = (e.clientX - rect.left) / scale;
+              const mouseY = (e.clientY - rect.top) / scale;
+              const field = localFields.find(f => f.id === splitMode.fieldId);
+              if (field) {
+                if (splitMode.orientation === 'vertical') {
+                  let clampedX = Math.max(field.x + 10, Math.min(field.x + field.width - 10, mouseX));
+                  // Snap to vertical guides
+                  const xSnap = snapToGuides(clampedX, true);
+                  if (xSnap.didSnap) clampedX = xSnap.snapped;
+                  setSplitPosition(clampedX);
+                } else {
+                  let clampedY = Math.max(field.y + 10, Math.min(field.y + field.height - 10, mouseY));
+                  // Snap to horizontal guides
+                  const ySnap = snapToGuides(clampedY, false);
+                  if (ySnap.didSnap) clampedY = ySnap.snapped;
+                  setSplitPosition(clampedY);
+                }
+              }
+            }
+          }}
+          onClick={(e) => {
+            if (splitMode && splitPosition) {
+              const field = localFields.find(f => f.id === splitMode.fieldId);
+              if (field) {
+                executeSplit(field, splitPosition);
+              }
+              return;
+            }
+
+            if (justFinishedBoxSelect.current) return; // Don't clear after box select
+            if (e.target === pdfContainerRef.current) {
+              setSelectedFields([]);
+              setSelectedGuides([]);
+              setSplitMode(null);
+              setSplitPosition(null);
+            }
+          }}
+          onContextMenu={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+
+            // Check if right-click is on a field or guide
             const rect = pdfContainerRef.current.getBoundingClientRect();
             const mouseX = (e.clientX - rect.left) / scale;
             const mouseY = (e.clientY - rect.top) / scale;
-            const field = localFields.find(f => f.id === splitMode.fieldId);
-            if (field) {
-              if (splitMode.orientation === 'vertical') {
-                let clampedX = Math.max(field.x + 10, Math.min(field.x + field.width - 10, mouseX));
-                // Snap to vertical guides
-                const xSnap = snapToGuides(clampedX, true);
-                if (xSnap.didSnap) clampedX = xSnap.snapped;
-                setSplitPosition(clampedX);
-              } else {
-                let clampedY = Math.max(field.y + 10, Math.min(field.y + field.height - 10, mouseY));
-                // Snap to horizontal guides
-                const ySnap = snapToGuides(clampedY, false);
-                if (ySnap.didSnap) clampedY = ySnap.snapped;
-                setSplitPosition(clampedY);
-              }
-            }
-          }
-        }}
-        onClick={(e) => {
-          if (splitMode && splitPosition) {
-            const field = localFields.find(f => f.id === splitMode.fieldId);
-            if (field) {
-              executeSplit(field, splitPosition);
-            }
-            return;
-          }
 
-          if (justFinishedBoxSelect.current) return; // Don't clear after box select
-          if (e.target === pdfContainerRef.current) {
-            setSelectedFields([]);
-            setSelectedGuides([]);
-            setSplitMode(null);
-            setSplitPosition(null);
-          }
-        }}
-        onContextMenu={(e) => {
-          e.preventDefault();
-          e.stopPropagation();
+            const clickedField = localFields
+              .filter(f => (f.page || 1) === currentPage)
+              .find(f => mouseX >= f.x && mouseX <= f.x + f.width &&
+                mouseY >= f.y && mouseY <= f.y + f.height);
 
-          // Check if right-click is on a field or guide
-          const rect = pdfContainerRef.current.getBoundingClientRect();
-          const mouseX = (e.clientX - rect.left) / scale;
-          const mouseY = (e.clientY - rect.top) / scale;
-
-          const clickedField = localFields
-            .filter(f => (f.page || 1) === currentPage)
-            .find(f => mouseX >= f.x && mouseX <= f.x + f.width && 
-                     mouseY >= f.y && mouseY <= f.y + f.height);
-
-          // Standard multi-select right-click behavior:
-          // - If right-clicking unselected item: select only that item
-          // - If right-clicking selected item: keep current selection
-          // - If right-clicking background: clear selection (or show background menu)
-          if (mode === 'field') {
-            if (clickedField) {
-              // Right-click on a field
-              if (!selectedFields.includes(clickedField.id)) {
-                // Clicking unselected field: select only it
-                setSelectedFields([clickedField.id]);
-                onFieldSelect(clickedField.id);
-              }
-              // else: clicking already-selected field, keep current selection
-            } else {
-              // Right-click on background: clear selection
-              setSelectedFields([]);
-              return; // Don't show menu
-            }
-          }
-
-          // Show menu for selected fields
-          if (mode === 'field' && selectedFields.length > 0) {
-            const field = selectedFields.length === 1 ? localFields.find(f => f.id === selectedFields[0]) : null;
-            setContextMenu({
-              x: e.clientX,
-              y: e.clientY,
-              items: [
-                field && {
-                  label: 'Create Horizontal Guides',
-                  icon: <MoveHorizontal className="h-4 w-4" />,
-                  onClick: () => createGuidesFromField(field, 'horizontal')
-                },
-                field && {
-                  label: 'Create Vertical Guides',
-                  icon: <MoveVertical className="h-4 w-4" />,
-                  onClick: () => createGuidesFromField(field, 'vertical')
-                },
-                field && { divider: true },
-                selectedFields.length === 1 && {
-                  label: 'Cascade Fields to Guides',
-                  icon: <AlignVerticalDistributeCenter className="h-4 w-4" />,
-                  onClick: () => cascadeFields()
-                },
-                selectedFields.length >= 3 && {
-                  label: 'Distribute Horizontally',
-                  icon: <AlignHorizontalDistributeCenter className="h-4 w-4" />,
-                  onClick: distributeFieldsHorizontally
-                },
-                selectedFields.length >= 3 && {
-                  label: 'Distribute Vertically',
-                  icon: <AlignVerticalDistributeCenter className="h-4 w-4" />,
-                  onClick: distributeFieldsVertically
-                },
-                { divider: true },
-                selectedFields.length >= 2 && {
-                  label: 'Merge Fields',
-                  icon: <Maximize2 className="h-4 w-4" />,
-                  onClick: mergeFields
-                },
-                selectedFields.length >= 2 && { divider: true },
-                {
-                  label: `Delete ${selectedFields.length} field${selectedFields.length > 1 ? 's' : ''}`,
-                  icon: <Trash2 className="h-4 w-4" />,
-                  onClick: () => {
-                    selectedFields.forEach(id => onFieldDelete(id));
-                    setSelectedFields([]);
-                  }
+            // Standard multi-select right-click behavior:
+            // - If right-clicking unselected item: select only that item
+            // - If right-clicking selected item: keep current selection
+            // - If right-clicking background: clear selection (or show background menu)
+            if (mode === 'field') {
+              if (clickedField) {
+                // Right-click on a field
+                if (!selectedFields.includes(clickedField.id)) {
+                  // Clicking unselected field: select only it
+                  setSelectedFields([clickedField.id]);
+                  onFieldSelect(clickedField.id);
                 }
-              ].filter(Boolean)
-            });
-          } else if (mode === 'guide') {
-            // Check if clicked on a guide
-            const clickedVerticalGuide = localGuides.vertical.findIndex((pos) => Math.abs(mouseX - pos) < 5 / scale);
-            const clickedHorizontalGuide = localGuides.horizontal.findIndex((pos) => Math.abs(mouseY - pos) < 5 / scale);
-            
-            if (clickedVerticalGuide !== -1) {
-              const guide = { type: 'vertical', index: clickedVerticalGuide, position: localGuides.vertical[clickedVerticalGuide] };
-              if (!selectedGuides.find(g => g.type === 'vertical' && g.index === clickedVerticalGuide)) {
-                setSelectedGuides([guide]);
+                // else: clicking already-selected field, keep current selection
+              } else {
+                // Right-click on background: clear selection
+                setSelectedFields([]);
+                return; // Don't show menu
               }
-            } else if (clickedHorizontalGuide !== -1) {
-              const guide = { type: 'horizontal', index: clickedHorizontalGuide, position: localGuides.horizontal[clickedHorizontalGuide] };
-              if (!selectedGuides.find(g => g.type === 'horizontal' && g.index === clickedHorizontalGuide)) {
-                setSelectedGuides([guide]);
-              }
-            } else {
-              // Clicked background
-              setSelectedGuides([]);
-              return;
             }
-            
-            if (selectedGuides.length > 0) {
+
+            // Show menu for selected fields
+            if (mode === 'field' && selectedFields.length > 0) {
+              const field = selectedFields.length === 1 ? localFields.find(f => f.id === selectedFields[0]) : null;
               setContextMenu({
                 x: e.clientX,
                 y: e.clientY,
                 items: [
-                  selectedGuides.length >= 2 && {
-                    label: 'Fill Fields',
-                    icon: <Grid className="h-4 w-4" />,
-                    onClick: fillFieldsFromGuides
-                  },
-                  selectedGuides.length >= 2 && { divider: true },
-                  selectedGuides.filter(g => g.type === 'vertical').length >= 2 && {
-                    label: 'Cascade Vertical...',
-                    icon: <MoveVertical className="h-4 w-4" />,
-                    onClick: () => setCascadeDialog({ type: 'guides-vertical' })
-                  },
-                  selectedGuides.filter(g => g.type === 'horizontal').length >= 2 && {
-                    label: 'Cascade Horizontal...',
+                  field && {
+                    label: 'Create Horizontal Guides',
                     icon: <MoveHorizontal className="h-4 w-4" />,
-                    onClick: () => setCascadeDialog({ type: 'guides-horizontal' })
+                    onClick: () => createGuidesFromField(field, 'horizontal')
                   },
-                  (selectedGuides.filter(g => g.type === 'vertical').length >= 2 || 
-                   selectedGuides.filter(g => g.type === 'horizontal').length >= 2) && { divider: true },
-                  selectedGuides.filter(g => g.type === 'vertical').length >= 3 && {
-                    label: 'Distribute Vertically',
-                    icon: <AlignHorizontalDistributeCenter className="h-4 w-4" />,
-                    onClick: distributeGuidesHorizontally
+                  field && {
+                    label: 'Create Vertical Guides',
+                    icon: <MoveVertical className="h-4 w-4" />,
+                    onClick: () => createGuidesFromField(field, 'vertical')
                   },
-                  selectedGuides.filter(g => g.type === 'horizontal').length >= 3 && {
-                    label: 'Distribute Horizontally',
+                  field && { divider: true },
+                  selectedFields.length === 1 && {
+                    label: 'Cascade Fields to Guides',
                     icon: <AlignVerticalDistributeCenter className="h-4 w-4" />,
-                    onClick: distributeGuidesVertically
+                    onClick: () => cascadeFields()
+                  },
+                  selectedFields.length >= 3 && {
+                    label: 'Distribute Horizontally',
+                    icon: <AlignHorizontalDistributeCenter className="h-4 w-4" />,
+                    onClick: distributeFieldsHorizontally
+                  },
+                  selectedFields.length >= 3 && {
+                    label: 'Distribute Vertically',
+                    icon: <AlignVerticalDistributeCenter className="h-4 w-4" />,
+                    onClick: distributeFieldsVertically
                   },
                   { divider: true },
+                  selectedFields.length >= 2 && {
+                    label: 'Merge Fields',
+                    icon: <Maximize2 className="h-4 w-4" />,
+                    onClick: mergeFields
+                  },
+                  selectedFields.length >= 2 && { divider: true },
                   {
-                    label: `Delete ${selectedGuides.length} guide${selectedGuides.length > 1 ? 's' : ''}`,
+                    label: `Delete ${selectedFields.length} field${selectedFields.length > 1 ? 's' : ''}`,
                     icon: <Trash2 className="h-4 w-4" />,
-                    onClick: deleteSelectedGuides
+                    onClick: () => {
+                      selectedFields.forEach(id => onFieldDelete(id));
+                      setSelectedFields([]);
+                    }
                   }
                 ].filter(Boolean)
               });
+            } else if (mode === 'guide') {
+              // Check if clicked on a guide
+              const clickedVerticalGuide = localGuides.vertical.findIndex((pos) => Math.abs(mouseX - pos) < 5 / scale);
+              const clickedHorizontalGuide = localGuides.horizontal.findIndex((pos) => Math.abs(mouseY - pos) < 5 / scale);
+
+              if (clickedVerticalGuide !== -1) {
+                const guide = { type: 'vertical', index: clickedVerticalGuide, position: localGuides.vertical[clickedVerticalGuide] };
+                if (!selectedGuides.find(g => g.type === 'vertical' && g.index === clickedVerticalGuide)) {
+                  setSelectedGuides([guide]);
+                }
+              } else if (clickedHorizontalGuide !== -1) {
+                const guide = { type: 'horizontal', index: clickedHorizontalGuide, position: localGuides.horizontal[clickedHorizontalGuide] };
+                if (!selectedGuides.find(g => g.type === 'horizontal' && g.index === clickedHorizontalGuide)) {
+                  setSelectedGuides([guide]);
+                }
+              } else {
+                // Clicked background
+                setSelectedGuides([]);
+                return;
+              }
+
+              if (selectedGuides.length > 0) {
+                setContextMenu({
+                  x: e.clientX,
+                  y: e.clientY,
+                  items: [
+                    selectedGuides.length >= 2 && {
+                      label: 'Fill Fields',
+                      icon: <Grid className="h-4 w-4" />,
+                      onClick: fillFieldsFromGuides
+                    },
+                    selectedGuides.length >= 2 && { divider: true },
+                    selectedGuides.filter(g => g.type === 'vertical').length >= 2 && {
+                      label: 'Cascade Vertical...',
+                      icon: <MoveVertical className="h-4 w-4" />,
+                      onClick: () => setCascadeDialog({ type: 'guides-vertical' })
+                    },
+                    selectedGuides.filter(g => g.type === 'horizontal').length >= 2 && {
+                      label: 'Cascade Horizontal...',
+                      icon: <MoveHorizontal className="h-4 w-4" />,
+                      onClick: () => setCascadeDialog({ type: 'guides-horizontal' })
+                    },
+                    (selectedGuides.filter(g => g.type === 'vertical').length >= 2 ||
+                      selectedGuides.filter(g => g.type === 'horizontal').length >= 2) && { divider: true },
+                    selectedGuides.filter(g => g.type === 'vertical').length >= 3 && {
+                      label: 'Distribute Vertically',
+                      icon: <AlignHorizontalDistributeCenter className="h-4 w-4" />,
+                      onClick: distributeGuidesHorizontally
+                    },
+                    selectedGuides.filter(g => g.type === 'horizontal').length >= 3 && {
+                      label: 'Distribute Horizontally',
+                      icon: <AlignVerticalDistributeCenter className="h-4 w-4" />,
+                      onClick: distributeGuidesVertically
+                    },
+                    { divider: true },
+                    {
+                      label: `Delete ${selectedGuides.length} guide${selectedGuides.length > 1 ? 's' : ''}`,
+                      icon: <Trash2 className="h-4 w-4" />,
+                      onClick: deleteSelectedGuides
+                    }
+                  ].filter(Boolean)
+                });
+              }
             }
-          }
-        }}
-      >
+          }}
+        >
           <div className="pdf-canvas-layer">
-            <PDFCanvas 
-              pdfUrl={pdfUrl} 
+            <PDFCanvas
+              pdfUrl={pdfUrl}
               scale={scale}
               page={currentPage}
               onLoadSuccess={(pdf) => setTotalPages(pdf.numPages)}
@@ -1761,10 +1761,9 @@ export default function PDFViewer({
             return (
               <div
                 key={`v-${idx}`}
-                className={`absolute top-0 bottom-0 ${guidesLocked ? 'pointer-events-none' : 'cursor-ew-resize'} ${
-                  isDragging ? 'bg-blue-500/10 z-20' : isSelected ? 'bg-blue-500 z-20' : guidesLocked ? 'bg-blue-400/20 z-10' : 'bg-blue-400/20 hover:bg-blue-500/60 z-10'
-                }`}
-                style={{ 
+                className={`absolute top-0 bottom-0 ${guidesLocked ? 'pointer-events-none' : 'cursor-ew-resize'} ${isDragging ? 'bg-blue-500/10 z-20' : isSelected ? 'bg-blue-500 z-20' : guidesLocked ? 'bg-blue-400/20 z-10' : 'bg-blue-400/20 hover:bg-blue-500/60 z-10'
+                  }`}
+                style={{
                   left: guidesLocked ? `${pos * scale - 0.5}px` : `${pos * scale - 3.5}px`,
                   width: guidesLocked ? '1px' : '7px'
                 }}
@@ -1777,7 +1776,7 @@ export default function PDFViewer({
                 }}
               >
                 {!guidesLocked && (
-                  <div 
+                  <div
                     className={`absolute inset-y-0 left-[3px] w-px ${isDragging ? 'bg-blue-600/30' : isSelected ? 'bg-blue-600' : 'bg-blue-400'}`}
                   />
                 )}
@@ -1787,21 +1786,20 @@ export default function PDFViewer({
                   </div>
                 )}
               </div>
-              );
-              })}
-              {guidesVisible && localGuides.horizontal.map((pos, idx) => {
-                const isSelected = !guidesLocked && selectedGuides.some(g => g.type === 'horizontal' && g.index === idx);
-                const isDragging = draggingGuide && (draggingGuide.type === 'horizontal' && draggingGuide.index === idx || (draggingGuide.multiSelect && isSelected));
-                return (
-                  <div
-                    key={`h-${idx}`}
-                    className={`absolute left-0 right-0 ${guidesLocked ? 'pointer-events-none' : 'cursor-ns-resize'} ${
-                      isDragging ? 'bg-blue-500/10 z-20' : isSelected ? 'bg-blue-500 z-20' : guidesLocked ? 'bg-blue-400/20 z-10' : 'bg-blue-400/20 hover:bg-blue-500/60 z-10'
-                    }`}
-                    style={{ 
-                      top: guidesLocked ? `${pos * scale - 0.5}px` : `${pos * scale - 3.5}px`,
-                      height: guidesLocked ? '1px' : '7px'
-                    }}
+            );
+          })}
+          {guidesVisible && localGuides.horizontal.map((pos, idx) => {
+            const isSelected = !guidesLocked && selectedGuides.some(g => g.type === 'horizontal' && g.index === idx);
+            const isDragging = draggingGuide && (draggingGuide.type === 'horizontal' && draggingGuide.index === idx || (draggingGuide.multiSelect && isSelected));
+            return (
+              <div
+                key={`h-${idx}`}
+                className={`absolute left-0 right-0 ${guidesLocked ? 'pointer-events-none' : 'cursor-ns-resize'} ${isDragging ? 'bg-blue-500/10 z-20' : isSelected ? 'bg-blue-500 z-20' : guidesLocked ? 'bg-blue-400/20 z-10' : 'bg-blue-400/20 hover:bg-blue-500/60 z-10'
+                  }`}
+                style={{
+                  top: guidesLocked ? `${pos * scale - 0.5}px` : `${pos * scale - 3.5}px`,
+                  height: guidesLocked ? '1px' : '7px'
+                }}
                 onMouseDown={(e) => {
                   if (mode !== 'guide') {
                     setMode('guide');
@@ -1811,7 +1809,7 @@ export default function PDFViewer({
                 }}
               >
                 {!guidesLocked && (
-                  <div 
+                  <div
                     className={`absolute inset-x-0 top-[3px] h-px ${isDragging ? 'bg-blue-600/30' : isSelected ? 'bg-blue-600' : 'bg-blue-400'}`}
                   />
                 )}
@@ -1845,7 +1843,7 @@ export default function PDFViewer({
             const style = getFontStyle(field);
             let displayName = field.label;
             let displayIcon = null;
-            
+
             // Special values take priority
             if (field.special_value) {
               if (field.special_value === 'today') displayName = 'Today';
@@ -1860,36 +1858,35 @@ export default function PDFViewer({
                 displayIcon = <IconComponent className="h-3.5 w-3.5 flex-shrink-0" style={{ fontSize: `${(field.font_size || 12) * scale * 0.8}px` }} />;
               }
             }
-            
+
             const isSelected = selectedFields.includes(field.id);
             const isPrimarySelected = isSelected && (selectedFields.length === 1 || selectedFieldId === field.id);
             const isDraggingField = dragging && dragging.fieldId === field.id;
             const isResizingField = resizing && resizing.fieldId === field.id;
 
             return (
-            <div
-              key={field.id}
+              <div
+                key={field.id}
 
-              className={`absolute cursor-move group ${
-                isSelected
-                  ? `ring-2 ring-teal-500 ${isDraggingField || isResizingField ? 'bg-teal-100/10' : 'bg-teal-100/30'} z-10`
-                  : 'ring-1 ring-slate-300 bg-blue-100/20 hover:bg-blue-200/30'
-              }`}
-              style={{
-                left: `${field.x * scale}px`,
-                top: `${field.y * scale}px`,
-                width: `${field.width * scale}px`,
-                height: `${field.height * scale}px`,
-              }}
-              onMouseDown={(e) => {
-                if (mode !== 'field') {
-                  setMode('field');
-                  setSelectedGuides([]);
-                }
-                handleMouseDown(e, field, 'drag');
-              }}
-            >
-                <div 
+                className={`absolute cursor-move group ${isSelected
+                    ? `ring-2 ring-teal-500 ${isDraggingField || isResizingField ? 'bg-teal-100/10' : 'bg-teal-100/30'} z-10`
+                    : 'ring-1 ring-slate-300 bg-blue-100/20 hover:bg-blue-200/30'
+                  }`}
+                style={{
+                  left: `${field.x * scale}px`,
+                  top: `${field.y * scale}px`,
+                  width: `${field.width * scale}px`,
+                  height: `${field.height * scale}px`,
+                }}
+                onMouseDown={(e) => {
+                  if (mode !== 'field') {
+                    setMode('field');
+                    setSelectedGuides([]);
+                  }
+                  handleMouseDown(e, field, 'drag');
+                }}
+              >
+                <div
                   className="absolute inset-0 flex pointer-events-none overflow-hidden gap-1.5"
                   style={{
                     ...style,
@@ -1904,7 +1901,7 @@ export default function PDFViewer({
                     {displayName}
                   </span>
                 </div>
-                
+
                 {isPrimarySelected && mode === 'field' && (
                   <>
                     <div
@@ -1943,17 +1940,17 @@ export default function PDFViewer({
                 style={
                   splitMode.orientation === 'vertical'
                     ? {
-                        left: `${splitPosition * scale}px`,
-                        top: `${field.y * scale}px`,
-                        width: '2px',
-                        height: `${field.height * scale}px`,
-                      }
+                      left: `${splitPosition * scale}px`,
+                      top: `${field.y * scale}px`,
+                      width: '2px',
+                      height: `${field.height * scale}px`,
+                    }
                     : {
-                        left: `${field.x * scale}px`,
-                        top: `${splitPosition * scale}px`,
-                        width: `${field.width * scale}px`,
-                        height: '2px',
-                      }
+                      left: `${field.x * scale}px`,
+                      top: `${splitPosition * scale}px`,
+                      width: `${field.width * scale}px`,
+                      height: '2px',
+                    }
                 }
               />
             );
@@ -2024,7 +2021,7 @@ export default function PDFViewer({
           </div>
         </div>
       )}
-      
+
       <div className="px-4 py-2 bg-gradient-to-r from-slate-50 to-slate-100 dark:from-slate-800 dark:to-slate-900 border-t border-slate-200 dark:border-slate-700">
         <div className="flex items-center justify-center gap-6 text-xs text-slate-600 dark:text-slate-400">
           {mode === 'guide' && (
