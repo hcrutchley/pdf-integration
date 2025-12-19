@@ -295,13 +295,20 @@ export default function TemplateEditor() {
   };
 
   const handleSave = async (updates) => {
-    // Optimistically update the UI immediately so changes feel instant
+    // Merge updates with current template to ensure we send the FULL object
+    // This prevents data loss even if the backend replaces instead of merges
+    const fullData = {
+      ...template,
+      ...updates
+    };
+
+    // Optimistically update the UI immediately
     queryClient.setQueryData(['template', templateId], (prev) => ({
       ...prev,
       ...updates
     }));
 
-    await updateMutation.mutateAsync(updates);
+    await updateMutation.mutateAsync(fullData);
 
     // If setup polling now is checked and all required fields are set
     if (setupPollingNow && updates.status === 'active') {
