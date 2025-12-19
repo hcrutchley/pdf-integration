@@ -46,7 +46,7 @@ export function DropdownMenuContent({ className = '', children }) {
   const ref = useRef(null);
 
   const open = ctx ? ctx.open : false;
-  const setOpen = ctx ? ctx.setOpen : () => {};
+  const setOpen = ctx ? ctx.setOpen : () => { };
 
   useEffect(() => {
     if (!open) return;
@@ -65,7 +65,7 @@ export function DropdownMenuContent({ className = '', children }) {
     <div
       ref={ref}
       className={[
-        'absolute right-0 mt-2 w-56 origin-top-right rounded-md bg-white shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none z-50',
+        'absolute left-0 mt-2 w-56 origin-top-left rounded-md bg-white dark:bg-slate-800 shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none z-50',
         className,
       ].join(' ')}
     >
@@ -86,7 +86,7 @@ export function DropdownMenuItem({ className = '', onClick, children }) {
       type="button"
       onClick={handleClick}
       className={[
-        'w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-100',
+        'w-full text-left px-4 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700',
         className,
       ].join(' ')}
     >

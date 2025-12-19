@@ -24,7 +24,7 @@ export default function Organizations() {
   const [copiedCode, setCopiedCode] = useState(null);
 
   React.useEffect(() => {
-    base44.auth.me().then(setUser).catch(() => {});
+    base44.auth.me().then(setUser).catch(() => { });
   }, []);
 
   const { data: organizations = [] } = useQuery({
@@ -32,8 +32,8 @@ export default function Organizations() {
     queryFn: async () => {
       if (!user) return [];
       const orgs = await db.organizations.getAll();
-      return orgs.filter(o => 
-        o.owner_email === user.email || 
+      return orgs.filter(o =>
+        o.owner_email === user.email ||
         (o.member_emails && o.member_emails.includes(user.email))
       );
     },
@@ -66,7 +66,7 @@ export default function Organizations() {
       if (org.owner_email === user.email || (org.member_emails && org.member_emails.includes(user.email))) {
         throw new Error('Already a member');
       }
-      
+
       const updatedMembers = [...(org.member_emails || []), user.email];
       await db.organizations.update(org.id, { member_emails: updatedMembers });
       return org;
@@ -94,7 +94,7 @@ export default function Organizations() {
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-900">
       <div className="max-w-6xl mx-auto p-6 space-y-6">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
             <h1 className="text-3xl font-bold text-slate-900 dark:text-slate-100">
               Organizations
@@ -103,7 +103,7 @@ export default function Organizations() {
               Share templates and connections with your team
             </p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <Dialog open={joinDialogOpen} onOpenChange={setJoinDialogOpen}>
               <DialogTrigger asChild>
                 <Button variant="outline">
@@ -125,7 +125,7 @@ export default function Organizations() {
                       maxLength={6}
                     />
                   </div>
-                  <Button 
+                  <Button
                     onClick={() => joinOrgMutation.mutate(joinCode)}
                     disabled={joinCode.length !== 6}
                     className="w-full bg-teal-600 hover:bg-teal-700"
@@ -156,7 +156,7 @@ export default function Organizations() {
                       placeholder="My Company"
                     />
                   </div>
-                  <Button 
+                  <Button
                     onClick={() => createOrgMutation.mutate(newOrgName)}
                     disabled={!newOrgName.trim()}
                     className="w-full bg-teal-600 hover:bg-teal-700"
