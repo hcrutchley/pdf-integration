@@ -11,7 +11,7 @@ import {
   Users,
   Building2,
   ChevronDown,
-  LogOut,
+  Shield,
   User
 } from 'lucide-react';
 import { createPageUrl } from '@/utils';
@@ -36,24 +36,26 @@ const ContextSwitcher = () => {
   const { contextType, selectedOrg, organizations, switchContext } = useOrgContext();
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-1">
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="outline" className="w-full justify-between">
+          <Button variant="ghost" className="w-full justify-between h-9 px-2 hover:bg-slate-100 dark:hover:bg-slate-800">
             <div className="flex items-center gap-2">
-              {contextType === 'personal' ? (
-                <Users className="h-4 w-4" />
-              ) : (
-                <Building2 className="h-4 w-4" />
-              )}
-              <span className="font-medium">
+              <div className="w-6 h-6 rounded bg-indigo-500/10 dark:bg-indigo-500/20 flex items-center justify-center">
+                {contextType === 'personal' ? (
+                  <Users className="h-3.5 w-3.5 text-indigo-600 dark:text-indigo-400" />
+                ) : (
+                  <Building2 className="h-3.5 w-3.5 text-indigo-600 dark:text-indigo-400" />
+                )}
+              </div>
+              <span className="font-medium text-sm truncate max-w-[120px]">
                 {contextType === 'personal' ? 'Personal' : 'Organization'}
               </span>
             </div>
-            <ChevronDown className="h-4 w-4" />
+            <ChevronDown className="h-3 w-3 opacity-50" />
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent className="w-[232px]">
+        <DropdownMenuContent className="w-[200px]">
           <DropdownMenuItem onClick={() => switchContext('personal')}>
             <Users className="h-4 w-4 mr-2" />
             Personal
@@ -68,12 +70,12 @@ const ContextSwitcher = () => {
       {contextType === 'organization' && organizations.length > 0 && (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="outline" className="w-full justify-between text-sm">
-              <span className="truncate">{selectedOrg?.name || 'Select Org'}</span>
-              <ChevronDown className="h-3 w-3" />
+            <Button variant="ghost" className="w-full justify-between h-8 px-2 text-xs hover:bg-slate-100 dark:hover:bg-slate-800">
+              <span className="truncate pl-8 text-slate-500">{selectedOrg?.name || 'Select Org'}</span>
+              <ChevronDown className="h-3 w-3 opacity-50" />
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent className="w-[232px]">
+          <DropdownMenuContent className="w-[200px]">
             {organizations.map((org) => (
               <DropdownMenuItem
                 key={org.id}
@@ -99,26 +101,27 @@ const Navigation = ({ currentPageName }) => {
     { name: 'Connections', icon: Database, path: createPageUrl('Connections') },
     { name: 'Organizations', icon: Users, path: createPageUrl('Organizations') },
     { name: 'History', icon: History, path: createPageUrl('History') },
+    { name: 'Admin Panel', icon: Shield, path: '/admin' },
     { name: 'Settings', icon: Settings, path: createPageUrl('Settings') },
   ];
 
   return (
-    <nav className="space-y-1">
+    <nav className="space-y-0.5">
       {navItems.map((item) => {
-        const isActive = currentPageName === item.name;
+        const isActive = currentPageName === item.name || (item.name === 'Admin Panel' && currentPageName === 'Admin');
         const Icon = item.icon;
 
         return (
           <Link
             key={item.name}
             to={item.path}
-            className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${isActive
-              ? 'bg-teal-600 text-white'
-              : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+            className={`flex items-center gap-3 px-3 py-2 rounded-md transition-all duration-200 group ${isActive
+              ? 'bg-teal-50 dark:bg-teal-900/20 text-teal-700 dark:text-teal-300'
+              : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-200 hover:translate-x-1'
               }`}
           >
-            <Icon className="h-5 w-5" />
-            <span className="font-medium">{item.name}</span>
+            <Icon className={`h-4 w-4 transition-colors ${isActive ? 'text-teal-600 dark:text-teal-400' : 'text-slate-400 dark:text-slate-500 group-hover:text-slate-600 dark:group-hover:text-slate-300'}`} />
+            <span className="font-medium text-sm">{item.name}</span>
           </Link>
         );
       })}
@@ -202,13 +205,13 @@ const UserMenu = () => {
   };
 
   return (
-    <div className="p-4 border-t border-slate-200 dark:border-slate-700">
-      <div className="flex items-center gap-3 mb-3">
-        <div className="w-8 h-8 rounded-full bg-teal-100 dark:bg-teal-900 flex items-center justify-center">
+    <div className="p-3 border-t border-slate-200/60 dark:border-slate-700/60 bg-slate-50/50 dark:bg-slate-900/50 backdrop-blur-sm">
+      <div className="flex items-center gap-3 mb-3 px-1">
+        <div className="w-8 h-8 rounded-full bg-teal-100 dark:bg-teal-900/50 flex items-center justify-center ring-2 ring-white dark:ring-slate-800 shadow-sm">
           <User className="w-4 h-4 text-teal-600 dark:text-teal-400" />
         </div>
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-medium text-slate-900 dark:text-slate-100 truncate">
+          <p className="text-sm font-semibold text-slate-900 dark:text-slate-100 truncate">
             {user?.name || user?.username || 'User'}
           </p>
           <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
@@ -220,9 +223,9 @@ const UserMenu = () => {
         variant="outline"
         size="sm"
         onClick={handleLogout}
-        className="w-full justify-center gap-2"
+        className="w-full justify-center gap-2 h-8 text-xs hover:bg-white dark:hover:bg-slate-800"
       >
-        <LogOut className="w-4 h-4" />
+        <LogOut className="w-3.5 h-3.5" />
         Sign Out
       </Button>
     </div>
@@ -231,45 +234,45 @@ const UserMenu = () => {
 
 function LayoutContent({ children, currentPageName }) {
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-900 flex">
-      {/* Sidebar */}
-      <div className="w-64 bg-white dark:bg-slate-800 border-r border-slate-200 dark:border-slate-700 flex flex-col">
+    <div className="h-screen bg-slate-50 dark:bg-slate-950 flex overflow-hidden">
+      {/* Sidebar - Compact & Glassmorphic */}
+      <div className="w-60 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border-r border-slate-200/60 dark:border-slate-800/60 flex flex-col shadow-[1px_0_20px_0_rgba(0,0,0,0.05)] z-20">
         {/* Logo/Brand */}
-        <div className="p-6 border-b border-slate-200 dark:border-slate-700">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-teal-600 rounded-lg">
-              <FileText className="h-6 w-6 text-white" />
+        <div className="p-4 border-b border-slate-200/60 dark:border-slate-800/60">
+          <div className="flex items-center gap-3 px-1">
+            <div className="p-1.5 bg-gradient-to-br from-teal-500 to-emerald-600 rounded-lg shadow-lg shadow-teal-500/20">
+              <FileText className="h-5 w-5 text-white" />
             </div>
             <div>
-              <h1 className="text-lg font-bold text-slate-900 dark:text-slate-100">
-                PDF Automation
+              <h1 className="text-base font-bold text-slate-900 dark:text-slate-100 leading-tight">
+                PDF Auto
               </h1>
-              <p className="text-xs text-slate-500 dark:text-slate-400">
-                Airtable Integration
+              <p className="text-[10px] uppercase tracking-wider font-semibold text-slate-500 dark:text-slate-400">
+                Integration
               </p>
             </div>
           </div>
         </div>
 
         {/* Context Switcher */}
-        <div className="p-4 border-b border-slate-200 dark:border-slate-700">
+        <div className="p-3 border-b border-slate-200/60 dark:border-slate-800/60">
           <ContextSwitcher />
         </div>
 
         {/* Navigation */}
-        <div className="flex-1 p-4">
+        <div className="flex-1 p-3 overflow-y-auto custom-scrollbar">
           <Navigation currentPageName={currentPageName} />
         </div>
 
         {/* Polling Indicator */}
-        <div className="p-4 border-t border-slate-200 dark:border-slate-700">
+        <div className="px-3 pb-2">
           <PollingIndicator />
         </div>
 
         {/* Theme Toggle */}
-        <div className="p-4 border-t border-slate-200 dark:border-slate-700">
-          <div className="flex items-center justify-between">
-            <span className="text-sm text-slate-600 dark:text-slate-400">Theme</span>
+        <div className="px-3 py-2 border-t border-slate-200/60 dark:border-slate-800/60">
+          <div className="flex items-center justify-between px-1">
+            <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Appearance</span>
             <ThemeToggle />
           </div>
         </div>
@@ -279,8 +282,11 @@ function LayoutContent({ children, currentPageName }) {
       </div>
 
       {/* Main Content */}
-      <div className="flex-1 overflow-auto">
-        {children}
+      <div className="flex-1 overflow-auto relative bg-slate-50 dark:bg-slate-950">
+        <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:24px_24px] pointer-events-none"></div>
+        <div className="relative">
+          {children}
+        </div>
       </div>
     </div>
   );

@@ -12,6 +12,7 @@ import Organizations from './pages/Organizations';
 import Settings from './pages/Settings';
 import Login from './pages/Login';
 import Signup from './pages/Signup';
+import Admin from './pages/Admin';
 import AuthGuard from './components/auth/AuthGuard';
 import './App.css';
 
@@ -103,6 +104,16 @@ function App() {
               <AuthGuard>
                 <Layout currentPageName="Settings">
                   <Settings />
+                </Layout>
+              </AuthGuard>
+            }
+          />
+          <Route
+            path="/admin"
+            element={
+              <AuthGuard>
+                <Layout currentPageName="Admin">
+                  <Admin />
                 </Layout>
               </AuthGuard>
             }
