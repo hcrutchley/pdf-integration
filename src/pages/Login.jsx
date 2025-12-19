@@ -28,7 +28,7 @@ const Login = () => {
         toast.success('Logged in successfully');
         navigate(from, { replace: true });
       } else {
-        toast.error('Login failed');
+        toast.error(result.error || 'Login failed');
       }
     } catch (error) {
       toast.error('An error occurred during login');

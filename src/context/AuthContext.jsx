@@ -39,8 +39,12 @@ export const AuthProvider = ({ children }) => {
       setUser(data.user);
       return { success: true };
     } else {
-      const error = await res.text(); // or res.json() depending on backend
-      return { success: false, error };
+      try {
+        const data = await res.json();
+        return { success: false, error: data.error || 'Login failed' };
+      } catch {
+        return { success: false, error: 'Login failed' };
+      }
     }
   };
 

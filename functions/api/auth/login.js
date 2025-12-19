@@ -34,6 +34,14 @@ export async function onRequestPost(context) {
     }, { headers });
 
   } catch (error) {
+    console.error("Login error:", error);
+    
+    if (error.message && error.message.includes("no such table")) {
+      return Response.json({ 
+        error: "Database not initialized. Please visit /api/setup to initialize the database." 
+      }, { status: 500 });
+    }
+    
     return Response.json({ error: error.message }, { status: 500 });
   }
 }

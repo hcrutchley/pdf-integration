@@ -6,7 +6,7 @@ export async function hashPassword(password) {
     encoder.encode(password),
     { name: "PBKDF2" },
     false,
-    ["deriveBits", "deriveKey"]
+    ["deriveKey"]
   );
   
   const key = await crypto.subtle.deriveKey(
@@ -30,11 +30,24 @@ export async function hashPassword(password) {
 }
 
 export async function verifyPassword(password, storedHash) {
+  if (!storedHash || !storedHash.includes(':')) {
+    return false;
+  }
+  
   const [saltHex, originalHash] = storedHash.split(':');
+  
+  if (!saltHex || !originalHash) {
+    return false;
+  }
+
   const encoder = new TextEncoder();
   
   // Convert hex salt back to Uint8Array
   const saltMatch = saltHex.match(/.{1,2}/g);
+  if (!saltMatch) {
+    return false;
+  }
+  
   const salt = new Uint8Array(saltMatch.map(byte => parseInt(byte, 16)));
 
   const keyMaterial = await crypto.subtle.importKey(
@@ -42,7 +55,7 @@ export async function verifyPassword(password, storedHash) {
     encoder.encode(password),
     { name: "PBKDF2" },
     false,
-    ["deriveBits", "deriveKey"]
+    ["deriveKey"]
   );
   
   const key = await crypto.subtle.deriveKey(
