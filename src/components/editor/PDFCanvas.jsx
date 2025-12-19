@@ -10,6 +10,9 @@ export default function PDFCanvas({ pdfUrl, page = 1, scale = 1, onLoad, onLoadS
   const canvasRef = useRef(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const loadingTaskRef = useRef(null);
+  const renderTaskRef = useRef(null);
+  const pageRef = useRef(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -18,6 +21,14 @@ export default function PDFCanvas({ pdfUrl, page = 1, scale = 1, onLoad, onLoadS
       try {
         setLoading(true);
         setError(null);
+        if (renderTaskRef.current) {
+          try { renderTaskRef.current.cancel(); } catch (_) {}
+          renderTaskRef.current = null;
+        }
+        if (loadingTaskRef.current) {
+          try { await loadingTaskRef.current.destroy(); } catch (_) {}
+          loadingTaskRef.current = null;
+        }
 
         // For older templates that still store a direct R2 public URL,
         // rewrite it to our same-origin proxy to avoid CORS issues.
@@ -33,7 +44,9 @@ export default function PDFCanvas({ pdfUrl, page = 1, scale = 1, onLoad, onLoadS
           // If pdfUrl is not a valid URL, just use it as-is.
         }
 
-        const pdf = await pdfjsLib.getDocument(effectiveUrl).promise;
+        const task = pdfjsLib.getDocument({ url: effectiveUrl });
+        loadingTaskRef.current = task;
+        const pdf = await task.promise;
         
         if (cancelled) return;
         
@@ -42,6 +55,7 @@ export default function PDFCanvas({ pdfUrl, page = 1, scale = 1, onLoad, onLoadS
         }
 
         const pdfPage = await pdf.getPage(page);
+        pageRef.current = pdfPage;
         
         if (cancelled) return;
 
@@ -54,10 +68,12 @@ export default function PDFCanvas({ pdfUrl, page = 1, scale = 1, onLoad, onLoadS
         canvas.height = viewport.height;
         canvas.width = viewport.width;
 
-        await pdfPage.render({
+        const renderTask = pdfPage.render({
           canvasContext: context,
           viewport: viewport
-        }).promise;
+        });
+        renderTaskRef.current = renderTask;
+        await renderTask.promise;
 
         if (cancelled) return;
 
@@ -80,6 +96,21 @@ export default function PDFCanvas({ pdfUrl, page = 1, scale = 1, onLoad, onLoadS
 
     return () => {
       cancelled = true;
+      if (renderTaskRef.current) {
+        try { renderTaskRef.current.cancel(); } catch (_) {}
+        renderTaskRef.current = null;
+      }
+      if (pageRef.current) {
+        try { pageRef.current.cleanup(); } catch (_) {}
+        pageRef.current = null;
+      }
+      if (loadingTaskRef.current) {
+        const t = loadingTaskRef.current;
+        loadingTaskRef.current = null;
+        Promise.resolve().then(async () => {
+          try { await t.destroy(); } catch (_) {}
+        });
+      }
     };
   }, [pdfUrl, page, scale]);
 
