@@ -62,8 +62,13 @@ export default function TemplateEditor() {
 
   const updateMutation = useMutation({
     mutationFn: (data) => db.templates.update(templateId, data),
-    onSuccess: () => {
-      queryClient.invalidateQueries(['template', templateId]);
+    onSuccess: (returnedData) => {
+      // Use the merged data returned by the API to update cache directly
+      // This avoids refetching potentially stale data from the server
+      queryClient.setQueryData(['template', templateId], (prev) => ({
+        ...prev,
+        ...returnedData
+      }));
       queryClient.invalidateQueries(['templates']);
       toast.success('Template saved successfully');
     }
