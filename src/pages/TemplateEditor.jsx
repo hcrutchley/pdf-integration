@@ -131,7 +131,7 @@ export default function TemplateEditor() {
 
       const tables = await airtableService.getBaseSchema(connection.api_key, template.airtable_base_id);
       const tableSchema = tables.find(t => t.name === template.airtable_table_name);
-      
+
       if (tableSchema) {
         setAirtableFields(tableSchema.fields || []);
       }
@@ -167,7 +167,7 @@ export default function TemplateEditor() {
     setIsDetecting(true);
     try {
       const detectedFields = await aiService.detectPDFFields(template.pdf_url);
-      
+
       const fieldsWithIds = detectedFields.map((field, index) => ({
         ...field,
         id: `field_${Date.now()}_${index}`,
@@ -200,16 +200,16 @@ export default function TemplateEditor() {
       ...template,
       fields: updatedFields
     });
-    
+
     // Skip save during active dragging/resizing for performance
     if (skipSave) return;
-    
+
     // Debounce the actual save - wait 60 seconds before syncing
     if (saveTimeoutRef.current) {
       clearTimeout(saveTimeoutRef.current);
     }
     saveTimeoutRef.current = setTimeout(() => {
-      updateMutation.mutate({ fields: updatedFields }, { 
+      updateMutation.mutate({ fields: updatedFields }, {
         onSuccess: () => {
           // Silent success - no toast for auto-save
         }
@@ -290,6 +290,12 @@ export default function TemplateEditor() {
   };
 
   const handleSave = async (updates) => {
+    // Optimistically update the UI immediately so changes feel instant
+    queryClient.setQueryData(['template', templateId], (prev) => ({
+      ...prev,
+      ...updates
+    }));
+
     await updateMutation.mutateAsync(updates);
 
     // If setup polling now is checked and all required fields are set
@@ -532,8 +538,8 @@ export default function TemplateEditor() {
                   <SearchableSelect
                     value={selectedTestRecord || ''}
                     onChange={setSelectedTestRecord}
-                    options={testRecords.map(r => ({ 
-                      value: r.id, 
+                    options={testRecords.map(r => ({
+                      value: r.id,
                       label: r.fields['Application number'] || r.fields.Name || r.fields.Title || r.id.substring(0, 8)
                     }))}
                     placeholder="Select test record"
