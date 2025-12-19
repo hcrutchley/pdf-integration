@@ -321,6 +321,7 @@ export default function PDFViewer({
             precisionBaseX: prev.initialX + ((e.clientX - prev.startX) / scale),
             precisionBaseY: prev.initialY + ((e.clientY - prev.startY) / scale)
           }));
+          rafRef.current = null;
           return; // Skip this frame to avoid jump
         } else if (isPrecisionKey && dragging.precisionMode) {
           // Continue precision mode
@@ -336,6 +337,7 @@ export default function PDFViewer({
             initialX: prev.precisionBaseX + ((e.clientX - prev.precisionStartX) / scale) * 0.1,
             initialY: prev.precisionBaseY + ((e.clientY - prev.precisionStartY) / scale) * 0.1
           }));
+          rafRef.current = null;
           return;
         } else {
           // Normal dragging
