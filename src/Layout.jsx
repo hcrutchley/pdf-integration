@@ -1,31 +1,36 @@
 import React, { useEffect } from 'react';
-import { Link, useLocation } from 'react-router-dom';
-import { 
-  LayoutDashboard, 
-  FileText, 
-  Database, 
-  History, 
-  Settings, 
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import {
+  LayoutDashboard,
+  FileText,
+  Database,
+  History,
+  Settings,
   Play,
   FileStack,
   Users,
   Building2,
-  ChevronDown
+  ChevronDown,
+  LogOut,
+  User
 } from 'lucide-react';
 import { createPageUrl } from '@/utils';
 import { ThemeProvider } from './components/theme/ThemeProvider';
 import ThemeToggle from './components/common/ThemeToggle';
 import { useQuery } from '@tanstack/react-query';
 import { db } from './components/services/database';
-import { Toaster } from 'sonner';
+import { Toaster, toast } from 'sonner';
 import { OrgProvider, useOrgContext } from './components/context/OrgContext';
 import { Button } from '@/components/ui/button';
+import { base44 } from '@/api/base44Client';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu';
+
 
 const ContextSwitcher = () => {
   const { contextType, selectedOrg, organizations, switchContext } = useOrgContext();
@@ -86,7 +91,7 @@ const ContextSwitcher = () => {
 
 const Navigation = ({ currentPageName }) => {
   const location = useLocation();
-  
+
   const navItems = [
     { name: 'Dashboard', icon: LayoutDashboard, path: createPageUrl('Dashboard') },
     { name: 'Templates', icon: FileStack, path: createPageUrl('Templates') },
@@ -102,16 +107,15 @@ const Navigation = ({ currentPageName }) => {
       {navItems.map((item) => {
         const isActive = currentPageName === item.name;
         const Icon = item.icon;
-        
+
         return (
           <Link
             key={item.name}
             to={item.path}
-            className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
-              isActive
-                ? 'bg-teal-600 text-white'
-                : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
-            }`}
+            className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${isActive
+              ? 'bg-teal-600 text-white'
+              : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+              }`}
           >
             <Icon className="h-5 w-5" />
             <span className="font-medium">{item.name}</span>
@@ -147,8 +151,8 @@ const PollingIndicator = () => {
 
     const interval = setInterval(async () => {
       console.log('Polling for new records...');
-      
-      const activeTemplates = templates.filter(t => 
+
+      const activeTemplates = templates.filter(t =>
         t.status === 'active' &&
         t.airtable_connection_id &&
         t.trigger_field &&
@@ -164,7 +168,7 @@ const PollingIndicator = () => {
       // TODO: Check each template for new records and generate PDFs
       // This would involve fetching from Airtable and generating PDFs
       // Implementation left as a TODO since it requires the full generation logic
-      
+
     }, (pollingConfig.interval_minutes || 5) * 60 * 1000);
 
     return () => clearInterval(interval);
@@ -183,6 +187,44 @@ const PollingIndicator = () => {
       <p className="text-xs text-green-700 dark:text-green-300 mt-1">
         Checking every {pollingConfig.interval_minutes} min
       </p>
+    </div>
+  );
+};
+
+const UserMenu = () => {
+  const navigate = useNavigate();
+  const user = base44.auth.getUser();
+
+  const handleLogout = async () => {
+    await base44.auth.logout();
+    toast.success('Logged out successfully');
+    navigate('/login');
+  };
+
+  return (
+    <div className="p-4 border-t border-slate-200 dark:border-slate-700">
+      <div className="flex items-center gap-3 mb-3">
+        <div className="w-8 h-8 rounded-full bg-teal-100 dark:bg-teal-900 flex items-center justify-center">
+          <User className="w-4 h-4 text-teal-600 dark:text-teal-400" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-medium text-slate-900 dark:text-slate-100 truncate">
+            {user?.name || user?.username || 'User'}
+          </p>
+          <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
+            {user?.email || ''}
+          </p>
+        </div>
+      </div>
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={handleLogout}
+        className="w-full justify-center gap-2"
+      >
+        <LogOut className="w-4 h-4" />
+        Sign Out
+      </Button>
     </div>
   );
 };
@@ -219,19 +261,22 @@ function LayoutContent({ children, currentPageName }) {
           <Navigation currentPageName={currentPageName} />
         </div>
 
-          {/* Polling Indicator */}
-          <div className="p-4 border-t border-slate-200 dark:border-slate-700">
-            <PollingIndicator />
-          </div>
+        {/* Polling Indicator */}
+        <div className="p-4 border-t border-slate-200 dark:border-slate-700">
+          <PollingIndicator />
+        </div>
 
-          {/* Theme Toggle */}
-          <div className="p-4 border-t border-slate-200 dark:border-slate-700">
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-slate-600 dark:text-slate-400">Theme</span>
-              <ThemeToggle />
-            </div>
+        {/* Theme Toggle */}
+        <div className="p-4 border-t border-slate-200 dark:border-slate-700">
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-slate-600 dark:text-slate-400">Theme</span>
+            <ThemeToggle />
           </div>
         </div>
+
+        {/* User Info & Logout */}
+        <UserMenu />
+      </div>
 
       {/* Main Content */}
       <div className="flex-1 overflow-auto">

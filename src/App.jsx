@@ -10,6 +10,9 @@ import Generate from './pages/Generate';
 import History from './pages/History';
 import Organizations from './pages/Organizations';
 import Settings from './pages/Settings';
+import Login from './pages/Login';
+import Signup from './pages/Signup';
+import AuthGuard from './components/auth/AuthGuard';
 import './App.css';
 
 const queryClient = new QueryClient();
@@ -19,68 +22,89 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
         <Routes>
+          {/* Public routes */}
+          <Route path="/login" element={<Login />} />
+          <Route path="/signup" element={<Signup />} />
+
+          {/* Protected routes */}
           <Route
             path="/"
             element={
-              <Layout currentPageName="Dashboard">
-                <Dashboard />
-              </Layout>
+              <AuthGuard>
+                <Layout currentPageName="Dashboard">
+                  <Dashboard />
+                </Layout>
+              </AuthGuard>
             }
           />
           <Route
             path="/templates"
             element={
-              <Layout currentPageName="Templates">
-                <Templates />
-              </Layout>
+              <AuthGuard>
+                <Layout currentPageName="Templates">
+                  <Templates />
+                </Layout>
+              </AuthGuard>
             }
           />
           <Route
             path="/template-editor"
             element={
-              <Layout currentPageName="TemplateEditor">
-                <TemplateEditor />
-              </Layout>
+              <AuthGuard>
+                <Layout currentPageName="TemplateEditor">
+                  <TemplateEditor />
+                </Layout>
+              </AuthGuard>
             }
           />
           <Route
             path="/connections"
             element={
-              <Layout currentPageName="Connections">
-                <Connections />
-              </Layout>
+              <AuthGuard>
+                <Layout currentPageName="Connections">
+                  <Connections />
+                </Layout>
+              </AuthGuard>
             }
           />
           <Route
             path="/generate"
             element={
-              <Layout currentPageName="Generate">
-                <Generate />
-              </Layout>
+              <AuthGuard>
+                <Layout currentPageName="Generate">
+                  <Generate />
+                </Layout>
+              </AuthGuard>
             }
           />
           <Route
             path="/history"
             element={
-              <Layout currentPageName="History">
-                <History />
-              </Layout>
+              <AuthGuard>
+                <Layout currentPageName="History">
+                  <History />
+                </Layout>
+              </AuthGuard>
             }
           />
           <Route
             path="/organizations"
             element={
-              <Layout currentPageName="Organizations">
-                <Organizations />
-              </Layout>
+              <AuthGuard>
+                <Layout currentPageName="Organizations">
+                  <Organizations />
+                </Layout>
+              </AuthGuard>
             }
           />
           <Route
             path="/settings"
             element={
-              <Layout currentPageName="Settings">
-                <Settings />
-              </Layout>
+              <AuthGuard>
+                <Layout currentPageName="Settings">
+                  <Settings />
+                </Layout>
+              </AuthGuard>
             }
           />
         </Routes>
@@ -90,4 +114,3 @@ function App() {
 }
 
 export default App;
-

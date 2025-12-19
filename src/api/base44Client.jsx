@@ -1,96 +1,137 @@
-// Temporary stub for Base44 client so the app can run without Base44.
-// Replace this with real API calls (Cloudflare Workers, etc.) later.
+// Auth client for the PDF Integration app
+// Handles login, signup, logout, and session management
+
+const TOKEN_KEY = 'auth_token';
+const USER_KEY = 'auth_user';
 
 export const base44 = {
-  // Very naive in-memory store per entity for local dev
-  _store: {},
-
-  get entities() {
-    return new Proxy(
-      {},
-      {
-        get: (_target, entityName) => {
-          if (!this._store[entityName]) {
-            this._store[entityName] = [];
-          }
-          const collection = this._store[entityName];
-
-          return {
-            async create(data) {
-              const id = crypto.randomUUID
-                ? crypto.randomUUID()
-                : String(Date.now()) + Math.random().toString(16).slice(2);
-              const record = {
-                id,
-                ...data,
-                created_date: new Date().toISOString(),
-              };
-              collection.push(record);
-              return record;
-            },
-            async list(sortBy = '-created_date', limit = 100) {
-              const sorted = [...collection].sort((a, b) => {
-                const field = sortBy.replace(/^-/, '');
-                const dir = sortBy.startsWith('-') ? -1 : 1;
-                return a[field] > b[field] ? dir : a[field] < b[field] ? -dir : 0;
-              });
-              return sorted.slice(0, limit);
-            },
-            async filter(query, sortBy = '-created_date', limit = 100) {
-              const filtered = collection.filter((item) =>
-                Object.entries(query).every(([key, value]) => item[key] === value)
-              );
-              const sorted = [...filtered].sort((a, b) => {
-                const field = sortBy.replace(/^-/, '');
-                const dir = sortBy.startsWith('-') ? -1 : 1;
-                return a[field] > b[field] ? dir : a[field] < b[field] ? -dir : 0;
-              });
-              return sorted.slice(0, limit);
-            },
-            async update(id, data) {
-              const idx = collection.findIndex((item) => item.id === id);
-              if (idx === -1) return null;
-              collection[idx] = { ...collection[idx], ...data };
-              return collection[idx];
-            },
-            async delete(id) {
-              const idx = collection.findIndex((item) => item.id === id);
-              if (idx === -1) return;
-              collection.splice(idx, 1);
-            },
-            async bulkCreate(dataArray) {
-              const created = [];
-              for (const data of dataArray) {
-                created.push(await this.create(data));
-              }
-              return created;
-            },
-          };
-        },
-      }
-    );
-  },
-
   auth: {
+    // Get stored token
+    getToken() {
+      return localStorage.getItem(TOKEN_KEY);
+    },
+
+    // Get stored user
+    getUser() {
+      const user = localStorage.getItem(USER_KEY);
+      return user ? JSON.parse(user) : null;
+    },
+
+    // Store auth data
+    setAuth(token, user) {
+      localStorage.setItem(TOKEN_KEY, token);
+      localStorage.setItem(USER_KEY, JSON.stringify(user));
+    },
+
+    // Clear auth data
+    clearAuth() {
+      localStorage.removeItem(TOKEN_KEY);
+      localStorage.removeItem(USER_KEY);
+    },
+
+    // Check if user is authenticated
+    isAuthenticated() {
+      return !!this.getToken();
+    },
+
+    // Login with username/password
+    async login(username, password) {
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || 'Login failed');
+      }
+
+      const data = await res.json();
+      this.setAuth(data.token, data.user);
+      return data.user;
+    },
+
+    // Signup with username/email/password
+    async signup(username, email, password) {
+      const res = await fetch('/api/auth/signup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, email, password }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || 'Signup failed');
+      }
+
+      const data = await res.json();
+      this.setAuth(data.token, data.user);
+      return data.user;
+    },
+
+    // Logout
+    async logout() {
+      const token = this.getToken();
+      if (token) {
+        try {
+          await fetch('/api/auth/logout', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${token}`,
+            },
+          });
+        } catch (e) {
+          // Ignore logout errors
+        }
+      }
+      this.clearAuth();
+    },
+
+    // Get current user from server (validates session)
     async me() {
-      // Fake user for local development
-      return {
-        id: 'demo-user',
-        email: 'demo@example.com',
-        name: 'Demo User',
-      };
+      const token = this.getToken();
+      if (!token) {
+        throw new Error('Not authenticated');
+      }
+
+      const res = await fetch('/api/auth/me', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      if (!res.ok) {
+        this.clearAuth();
+        throw new Error('Session expired');
+      }
+
+      const user = await res.json();
+      // Update stored user data
+      localStorage.setItem(USER_KEY, JSON.stringify(user));
+      return user;
     },
   },
 
+  // Stub for entities (not used anymore, db service calls API directly)
+  entities: new Proxy({}, {
+    get: () => ({
+      create: async () => { throw new Error('Use db service instead'); },
+      list: async () => { throw new Error('Use db service instead'); },
+      filter: async () => { throw new Error('Use db service instead'); },
+      update: async () => { throw new Error('Use db service instead'); },
+      delete: async () => { throw new Error('Use db service instead'); },
+    }),
+  }),
+
+  // Stub for integrations
   integrations: {
     Core: {
       async UploadFile({ file }) {
-        // For now, just create a blob URL for preview.
         const url = URL.createObjectURL(file);
         return { file_url: url };
       },
       async InvokeLLM() {
-        // No-op AI: return no detected fields
         return { fields: [] };
       },
       async ExtractDataFromUploadedFile() {
@@ -99,5 +140,3 @@ export const base44 = {
     },
   },
 };
-
-
