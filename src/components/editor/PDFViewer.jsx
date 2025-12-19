@@ -1487,12 +1487,7 @@ export default function PDFViewer({
           )}
         </div>
         <div className="flex items-center gap-4">
-          {(selectedFields.length > 0 || selectedGuides.length > 0) && (
-            <div className="text-sm font-medium text-teal-700 dark:text-teal-300 bg-teal-50 dark:bg-teal-900/20 px-3 py-1.5 rounded-md border border-teal-200 dark:border-teal-800 shadow-sm animate-in fade-in zoom-in duration-200 whitespace-nowrap">
-              {selectedFields.length > 0 ? `${selectedFields.length} field${selectedFields.length > 1 ? 's' : ''} selected` :
-                `${selectedGuides.length} guide${selectedGuides.length > 1 ? 's' : ''} selected`}
-            </div>
-          )}
+
           <div className="flex items-center gap-2">
             <Button
               size="sm"
@@ -1869,8 +1864,8 @@ export default function PDFViewer({
                 key={field.id}
 
                 className={`absolute cursor-move group ${isSelected
-                    ? `ring-2 ring-teal-500 ${isDraggingField || isResizingField ? 'bg-teal-100/10' : 'bg-teal-100/30'} z-10`
-                    : 'ring-1 ring-slate-300 bg-blue-100/20 hover:bg-blue-200/30'
+                  ? `ring-2 ring-teal-500 ${isDraggingField || isResizingField ? 'bg-teal-100/10' : 'bg-teal-100/30'} z-10`
+                  : 'ring-1 ring-slate-300 bg-blue-100/20 hover:bg-blue-200/30'
                   }`}
                 style={{
                   left: `${field.x * scale}px`,
