@@ -144,13 +144,22 @@ async function handleGet(env, entityName, id) {
 async function handleUpdate(env, entityName, id, data) {
   const now = new Date().toISOString();
 
+  // Merge with existing data to support partial updates
+  const { results } = await env.DB.prepare(
+    "SELECT data FROM entities WHERE id = ? AND entity_name = ?"
+  )
+    .bind(id, entityName)
+    .all();
+  const existing = results.length ? JSON.parse(results[0].data) : {};
+  const merged = { ...existing, ...data };
+
   await env.DB.prepare(
     "UPDATE entities SET data = ?, updated_date = ? WHERE id = ? AND entity_name = ?"
   )
-    .bind(JSON.stringify(data), now, id, entityName)
+    .bind(JSON.stringify(merged), now, id, entityName)
     .run();
 
-  return Response.json({ id, ...data, updated_date: now });
+  return Response.json({ id, ...merged, updated_date: now });
 }
 
 async function handleDelete(env, entityName, id) {
