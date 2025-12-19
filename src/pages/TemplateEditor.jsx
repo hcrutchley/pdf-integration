@@ -389,7 +389,7 @@ export default function TemplateEditor() {
                   if (saveTimeoutRef.current) {
                     clearTimeout(saveTimeoutRef.current);
                   }
-                  updateMutation.mutate({ fields: template.fields, guides });
+                  handleSave({ guides });
                 }}
                 className="bg-teal-600 hover:bg-teal-700"
               >
