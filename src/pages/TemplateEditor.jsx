@@ -295,24 +295,44 @@ export default function TemplateEditor() {
   };
 
   const handleSave = async (updates) => {
-    // Optimistically update the UI immediately
-    queryClient.setQueryData(['template', templateId], (prev) => ({
-      ...prev,
-      ...updates
-    }));
+    try {
+      // 1. Fetch latest "truth" from server to ensure we don't overwrite with stale data
+      const latestTemplate = await db.templates.get(templateId);
 
-    await updateMutation.mutateAsync(updates);
+      // 2. Client-Side Merge: Apply our updates to the fresh template
+      const fullData = {
+        ...latestTemplate,
+        ...template, // Use current UI state as base (in case of unsaved changes)
+        ...updates   // Apply the new updates on top
+      };
 
-    // If setup polling now is checked and all required fields are set
-    if (setupPollingNow && updates.status === 'active') {
-      const pollingConfig = await db.pollingConfig.get();
-      if (pollingConfig && !pollingConfig.enabled) {
-        await db.pollingConfig.createOrUpdate({
-          enabled: true,
-          interval_minutes: pollingConfig.interval_minutes || 5,
-          last_poll_time: new Date().toISOString()
-        });
+      // 3. Sanitize: Remove readonly fields that shouldn't be sent back
+      // This helps prevent 502 errors if the backend chokes on them
+      const { id, created_date, updated_date, ...sanitizedData } = fullData;
+
+      // Optimistically update the UI immediately
+      queryClient.setQueryData(['template', templateId], (prev) => ({
+        ...prev,
+        ...updates
+      }));
+
+      // 4. Send the sanitized full object
+      await updateMutation.mutateAsync(sanitizedData);
+
+      // If setup polling now is checked and all required fields are set
+      if (setupPollingNow && updates.status === 'active') {
+        const pollingConfig = await db.pollingConfig.get();
+        if (pollingConfig && !pollingConfig.enabled) {
+          await db.pollingConfig.createOrUpdate({
+            enabled: true,
+            interval_minutes: pollingConfig.interval_minutes || 5,
+            last_poll_time: new Date().toISOString()
+          });
+        }
       }
+    } catch (error) {
+      console.error("Save failed:", error);
+      toast.error("Failed to save changes. Please try again.");
     }
   };
 

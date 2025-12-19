@@ -13,6 +13,10 @@ export const db = {
     });
   },
 
+  async get(entityName, id) {
+    return apiRequest(`/api/entities/${entityName}?id=${encodeURIComponent(id)}`);
+  },
+
   async list(entityName, sortBy = "-created_date", limit = 100) {
     const params = new URLSearchParams();
     params.set("sort", sortBy);
@@ -32,8 +36,8 @@ export const db = {
     return apiRequest(
       `/api/entities/${entityName}?id=${encodeURIComponent(id)}`,
       {
-      method: "PUT",
-      body: data,
+        method: "PUT",
+        body: data,
       }
     );
   },
@@ -42,7 +46,7 @@ export const db = {
     return apiRequest(
       `/api/entities/${entityName}?id=${encodeURIComponent(id)}`,
       {
-      method: "DELETE",
+        method: "DELETE",
       }
     );
   },
@@ -58,6 +62,9 @@ export const db = {
   templates: {
     async getAll() {
       return await db.list("PDFTemplate", "-updated_date");
+    },
+    async get(id) {
+      return await db.get("PDFTemplate", id);
     },
     async getBySection(sectionId) {
       return await db.filter("PDFTemplate", { section_id: sectionId });
