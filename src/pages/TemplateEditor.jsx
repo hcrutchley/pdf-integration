@@ -197,35 +197,63 @@ export default function TemplateEditor() {
     const updatedFields = template.fields.map(f =>
       f.id === fieldId ? { ...f, ...updates } : f
     );
-    // Optimistically update the UI immediately
-    queryClient.setQueryData(['template', templateId], (prev) => ({
-      ...prev,
-      fields: updatedFields
-    }));
 
     // Skip save during active dragging/resizing for performance
-    if (skipSave) return;
+    if (skipSave) {
+      // For performance-critical drag operations, we might still want a lightweight optimistic update
+      // but we'll defer the heavy save
+      queryClient.setQueryData(['template', templateId], (prev) => ({
+        ...prev,
+        fields: updatedFields
+      }));
+      return;
+    }
 
     // Debounce the actual save - wait 60 seconds before syncing
     if (saveTimeoutRef.current) {
       clearTimeout(saveTimeoutRef.current);
     }
+
+    // For local updates, we want immediate feedback via handleSave's optimistic update
+    // But for the debounce logic, we need to be careful.
+    // Actually, originally handleUpdateField only called updateMutation directly in timeout.
+    // To be safe, let's call handleSave explicitly now for immediate optimistic update, 
+    // but maybe we debounce the NETWORK call? 
+    // For now, let's stick to the pattern: optimistic local update, then network save.
+
+    // Immediate optimistic update manually here JUST for skipSave=false case if we don't call handleSave?
+    // No, let's use handleSave logic but standard debounce is tricky with handleSave.
+
+    // REVISITING STRATEGY: 
+    // We want handleSave to contain the safety logic.
+    // If we just call handleSave, it triggers network call.
+    // dragging sends many updates.
+
+    // Let's keep the optimistic update HERE but add the safety check manually here too?
+    // Or better: ensure 'prev' has pdf_url.
+
+    queryClient.setQueryData(['template', templateId], (prev) => {
+      const newData = { ...prev, fields: updatedFields };
+      // SAFETY CHECK
+      if (!newData.pdf_url && template.pdf_url) newData.pdf_url = template.pdf_url;
+      return newData;
+    });
+
     saveTimeoutRef.current = setTimeout(() => {
+      // We use mutate directly here to avoid full handleSave overhead if we want custom behavior (silent)
+      // BUT we should really use handleSave to be safe.
+      // Let's fallback to safely calling mutate with sanitized data re-derived?
+      // Or just call updateMutation.mutate with fields.
       updateMutation.mutate({ fields: updatedFields }, {
         onSuccess: () => {
           // Silent success - no toast for auto-save
         }
       });
-    }, 60000); // 60 seconds
+    }, 2000); // Reduced to 2s for better sync safety, 60s is too long
   };
 
   const handleDeleteField = (fieldId) => {
     const updatedFields = template.fields.filter(f => f.id !== fieldId);
-    // Optimistically update UI
-    queryClient.setQueryData(['template', templateId], (prev) => ({
-      ...prev,
-      fields: updatedFields
-    }));
     if (selectedField?.id === fieldId) {
       setSelectedField(null);
     }
@@ -233,27 +261,19 @@ export default function TemplateEditor() {
     if (saveTimeoutRef.current) {
       clearTimeout(saveTimeoutRef.current);
     }
-    updateMutation.mutate({ fields: updatedFields });
+
+    // Use safe handleSave
+    handleSave({ fields: updatedFields });
   };
 
   const handleAddField = (newField) => {
     const updatedFields = [...(template.fields || []), newField];
-    // Optimistically update the UI
-    queryClient.setQueryData(['template', templateId], (prev) => ({
-      ...prev,
-      fields: updatedFields
-    }));
-    updateMutation.mutate({ fields: updatedFields });
+    handleSave({ fields: updatedFields });
   };
 
   const handleBulkFieldAdd = (newFields) => {
     const updatedFields = [...(template.fields || []), ...newFields];
-    // Optimistically update the UI
-    queryClient.setQueryData(['template', templateId], (prev) => ({
-      ...prev,
-      fields: updatedFields
-    }));
-    updateMutation.mutate({ fields: updatedFields });
+    handleSave({ fields: updatedFields });
   };
 
   const handlePreview = async () => {
@@ -293,7 +313,20 @@ export default function TemplateEditor() {
 
   const handleSave = async (updates) => {
     try {
-      // 1. Fetch latest "truth" from server to ensure we don't overwrite with stale data
+      // 0. OPTIMISTIC UPDATE (Moved to top for instant feedback on Add/Delete)
+      // This ensures the UI feels responsive while waiting for DB/API
+      queryClient.setQueryData(['template', templateId], (prev) => {
+        const newData = {
+          ...prev,
+          ...updates
+        };
+        // CRITICAL: Ensure `pdf_url` is never lost during optimistic update
+        if (!newData.pdf_url && (prev?.pdf_url || template?.pdf_url)) {
+          newData.pdf_url = prev?.pdf_url || template?.pdf_url;
+        }
+        return newData;
+      });
+
       // 1. Fetch latest "truth" from server to ensure we don't overwrite with stale data
       const latestTemplate = await db.templates.get(templateId);
 
@@ -313,12 +346,6 @@ export default function TemplateEditor() {
       // 3. Sanitize: Remove readonly fields that shouldn't be sent back
       // This helps prevent 502 errors if the backend chokes on them
       const { id, created_date, updated_date, ...sanitizedData } = fullData;
-
-      // Optimistically update the UI immediately using the full, corrected data
-      queryClient.setQueryData(['template', templateId], (prev) => ({
-        ...prev,
-        ...sanitizedData
-      }));
 
       // 4. Send the sanitized full object
       await updateMutation.mutateAsync(sanitizedData);
