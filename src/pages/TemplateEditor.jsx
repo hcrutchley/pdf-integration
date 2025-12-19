@@ -294,8 +294,8 @@ export default function TemplateEditor() {
   const handleSave = async (updates) => {
     try {
       // 1. Fetch latest "truth" from server to ensure we don't overwrite with stale data
+      // 1. Fetch latest "truth" from server to ensure we don't overwrite with stale data
       const latestTemplate = await db.templates.get(templateId);
-      console.log('[handleSave] latestTemplate from DB:', latestTemplate);
 
       // 2. Client-Side Merge: Apply our updates to the fresh template
       const fullData = {
@@ -304,14 +304,9 @@ export default function TemplateEditor() {
         ...updates   // Apply the new updates on top
       };
 
-      console.log('[handleSave] template state:', template);
-      console.log('[handleSave] updates:', updates);
-      console.log('[handleSave] fullData before fix:', fullData);
-
       // CRITICAL: Ensure `pdf_url` is never lost. 
       // If `template` somehow effectively deleted it (undefined), restore it from `latestTemplate`.
       if (!fullData.pdf_url && latestTemplate.pdf_url) {
-        console.log('[handleSave] RESTORING PDF_URL from latestTemplate');
         fullData.pdf_url = latestTemplate.pdf_url;
       }
 
