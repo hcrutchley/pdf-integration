@@ -199,9 +199,16 @@ async function handleUpdate(env, entityName, id, data) {
 
   let mergedData = data;
   if (results.length > 0) {
-    const existingData = JSON.parse(results[0].data);
-    // Merge: new data overwrites existing fields, but keeps fields not in the update
-    mergedData = { ...existingData, ...data };
+    try {
+      const existingData = JSON.parse(results[0].data);
+      // Merge: new data overwrites existing fields, but keeps fields not in the update
+      mergedData = { ...existingData, ...data };
+    } catch (e) {
+      // If JSON parse fails, we fallback to just saving the new data
+      // This prevents 502 errors from corrupted data
+      console.error("Failed to parse existing data:", e);
+      mergedData = data;
+    }
   }
 
   await env.DB.prepare(
