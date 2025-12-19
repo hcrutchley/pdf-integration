@@ -410,36 +410,46 @@ export default function TemplateEditor() {
           </div>
         </div>
 
-        {/* Editor Layout */}
         <div className="flex flex-1 overflow-hidden">
           {/* PDF Viewer */}
           <div className="flex-1">
-            <PDFViewer
-              pdfUrl={template.pdf_url}
-              fields={template.fields || []}
-              onFieldUpdate={handleUpdateField}
-              onFieldDelete={handleDeleteField}
-              onFieldAdd={handleAddField}
-              onBulkFieldAdd={handleBulkFieldAdd}
-              onFieldSelect={(fieldId) => {
-                const field = template.fields?.find(f => f.id === fieldId);
-                setSelectedField(field);
-              }}
-              selectedFieldId={selectedField?.id}
-              defaultFont={template.default_font}
-              defaultFontSize={template.default_font_size}
-              defaultAlignment={template.default_alignment}
-              defaultBold={template.default_bold}
-              defaultItalic={template.default_italic}
-              defaultUnderline={template.default_underline}
-              guides={guides}
-              onGuidesChange={setGuides}
-              template={template}
-              queryClient={queryClient}
-              templateId={templateId}
-              updateMutation={updateMutation}
-              airtableFields={airtableFields}
-            />
+            {!template.pdf_url ? (
+              <div className="flex items-center justify-center h-full bg-slate-100 text-slate-500">
+                <div className="text-center">
+                  <p className="mb-4">No PDF uploaded for this template.</p>
+                  <Button onClick={() => navigate(createPageUrl('Templates'))}>
+                    Go back to upload
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <PDFViewer
+                pdfUrl={template.pdf_url}
+                fields={template.fields || []}
+                onFieldUpdate={handleUpdateField}
+                onFieldDelete={handleDeleteField}
+                onFieldAdd={handleAddField}
+                onBulkFieldAdd={handleBulkFieldAdd}
+                onFieldSelect={(fieldId) => {
+                  const field = template.fields?.find(f => f.id === fieldId);
+                  setSelectedField(field);
+                }}
+                selectedFieldId={selectedField?.id}
+                defaultFont={template.default_font}
+                defaultFontSize={template.default_font_size}
+                defaultAlignment={template.default_alignment}
+                defaultBold={template.default_bold}
+                defaultItalic={template.default_italic}
+                defaultUnderline={template.default_underline}
+                guides={guides}
+                onGuidesChange={setGuides}
+                template={template}
+                queryClient={queryClient}
+                templateId={templateId}
+                updateMutation={updateMutation}
+                airtableFields={airtableFields}
+              />
+            )}
           </div>
 
           {/* Properties Panel */}
@@ -486,7 +496,7 @@ export default function TemplateEditor() {
           <div className="flex gap-2">
             <Button
               onClick={handleDetectFields}
-              disabled={isDetecting || !template.pdf_url}
+              disabled={isDetecting}
               variant="outline"
             >
               <Sparkles className="h-4 w-4 mr-2" />
@@ -494,7 +504,6 @@ export default function TemplateEditor() {
             </Button>
             <Button
               onClick={() => setMode('editor')}
-              disabled={!template.pdf_url}
               variant="outline"
             >
               <Eye className="h-4 w-4 mr-2" />
@@ -502,7 +511,6 @@ export default function TemplateEditor() {
             </Button>
             <Button
               onClick={() => setMode('editor')}
-              disabled={!template.pdf_url}
               className="bg-teal-600 hover:bg-teal-700"
             >
               Done Config
