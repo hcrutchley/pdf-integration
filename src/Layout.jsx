@@ -12,6 +12,7 @@ import {
   Building2,
   ChevronDown,
   Shield,
+  LogOut,
   User
 } from 'lucide-react';
 import { createPageUrl } from '@/utils';
