@@ -190,13 +190,27 @@ async function handleGet(env, entityName, id) {
 async function handleUpdate(env, entityName, id, data) {
   const now = new Date().toISOString();
 
+  // First, fetch the existing data so we can merge (not replace)
+  const { results } = await env.DB.prepare(
+    "SELECT data FROM entities WHERE id = ? AND entity_name = ?"
+  )
+    .bind(id, entityName)
+    .all();
+
+  let mergedData = data;
+  if (results.length > 0) {
+    const existingData = JSON.parse(results[0].data);
+    // Merge: new data overwrites existing fields, but keeps fields not in the update
+    mergedData = { ...existingData, ...data };
+  }
+
   await env.DB.prepare(
     "UPDATE entities SET data = ?, updated_date = ? WHERE id = ? AND entity_name = ?"
   )
-    .bind(JSON.stringify(data), now, id, entityName)
+    .bind(JSON.stringify(mergedData), now, id, entityName)
     .run();
 
-  return Response.json({ id, ...data, updated_date: now });
+  return Response.json({ id, ...mergedData, updated_date: now });
 }
 
 async function handleDelete(env, entityName, id) {
