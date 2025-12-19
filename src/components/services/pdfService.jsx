@@ -14,30 +14,9 @@ export const pdfService = {
    */
   async generatePDF(templateUrl, fields, data) {
     try {
-      // Rewrite R2 URLs if needed (to avoid CORS issues)
-      let effectiveUrl = templateUrl;
-      try {
-        const u = new URL(templateUrl, window.location.origin);
-        if (u.hostname.endsWith(".r2.dev")) {
-          const key = u.pathname.replace(/^\//, "");
-          effectiveUrl = `/api/files/${encodeURIComponent(key)}`;
-        }
-      } catch (_) {}
-
       // Fetch and load the original PDF
-      const response = await fetch(effectiveUrl);
-      
-      if (!response.ok) {
-        const text = await response.text();
-        throw new Error(`Failed to fetch PDF template: ${response.status} ${response.statusText} - ${text.substring(0, 100)}`);
-      }
-
+      const response = await fetch(templateUrl);
       const arrayBuffer = await response.arrayBuffer();
-      
-      if (arrayBuffer.byteLength === 0) {
-        throw new Error('Fetched PDF is empty');
-      }
-
       const pdfDoc = await PDFDocument.load(arrayBuffer);
       
       // Load fonts

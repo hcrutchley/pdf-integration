@@ -10,9 +10,6 @@ import Generate from './pages/Generate';
 import History from './pages/History';
 import Organizations from './pages/Organizations';
 import Settings from './pages/Settings';
-import Login from './pages/Login';
-import { AuthProvider } from './context/AuthContext';
-import ProtectedRoute from './components/ProtectedRoute';
 import './App.css';
 
 const queryClient = new QueryClient();
@@ -20,95 +17,77 @@ const queryClient = new QueryClient();
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <AuthProvider>
-        <BrowserRouter>
-          <Routes>
-            <Route path="/login" element={<Login />} />
-            <Route
-              path="/"
-              element={
-                <ProtectedRoute>
-                  <Layout currentPageName="Dashboard">
-                    <Dashboard />
-                  </Layout>
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/templates"
-              element={
-                <ProtectedRoute>
-                  <Layout currentPageName="Templates">
-                    <Templates />
-                  </Layout>
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/template-editor"
-              element={
-                <ProtectedRoute>
-                  <Layout currentPageName="TemplateEditor">
-                    <TemplateEditor />
-                  </Layout>
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/connections"
-              element={
-                <ProtectedRoute>
-                  <Layout currentPageName="Connections">
-                    <Connections />
-                  </Layout>
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/generate"
-              element={
-                <ProtectedRoute>
-                  <Layout currentPageName="Generate">
-                    <Generate />
-                  </Layout>
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/history"
-              element={
-                <ProtectedRoute>
-                  <Layout currentPageName="History">
-                    <History />
-                  </Layout>
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/organizations"
-              element={
-                <ProtectedRoute>
-                  <Layout currentPageName="Organizations">
-                    <Organizations />
-                  </Layout>
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/settings"
-              element={
-                <ProtectedRoute>
-                  <Layout currentPageName="Settings">
-                    <Settings />
-                  </Layout>
-                </ProtectedRoute>
-              }
-            />
-          </Routes>
-        </BrowserRouter>
-      </AuthProvider>
+      <BrowserRouter>
+        <Routes>
+          <Route
+            path="/"
+            element={
+              <Layout currentPageName="Dashboard">
+                <Dashboard />
+              </Layout>
+            }
+          />
+          <Route
+            path="/templates"
+            element={
+              <Layout currentPageName="Templates">
+                <Templates />
+              </Layout>
+            }
+          />
+          <Route
+            path="/template-editor"
+            element={
+              <Layout currentPageName="TemplateEditor">
+                <TemplateEditor />
+              </Layout>
+            }
+          />
+          <Route
+            path="/connections"
+            element={
+              <Layout currentPageName="Connections">
+                <Connections />
+              </Layout>
+            }
+          />
+          <Route
+            path="/generate"
+            element={
+              <Layout currentPageName="Generate">
+                <Generate />
+              </Layout>
+            }
+          />
+          <Route
+            path="/history"
+            element={
+              <Layout currentPageName="History">
+                <History />
+              </Layout>
+            }
+          />
+          <Route
+            path="/organizations"
+            element={
+              <Layout currentPageName="Organizations">
+                <Organizations />
+              </Layout>
+            }
+          />
+          <Route
+            path="/settings"
+            element={
+              <Layout currentPageName="Settings">
+                <Settings />
+              </Layout>
+            }
+          />
+        </Routes>
+      </BrowserRouter>
     </QueryClientProvider>
   );
 }
 
 export default App;
+

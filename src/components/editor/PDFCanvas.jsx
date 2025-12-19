@@ -1,17 +1,15 @@
 import React, { useEffect, useRef, useState } from 'react';
+// Use the standard pdf.js build and provide an explicit Worker via Vite.
 import * as pdfjsLib from 'pdfjs-dist';
-import workerSrc from 'pdfjs-dist/build/pdf.worker.mjs?url';
+import PdfJsWorker from 'pdfjs-dist/build/pdf.worker.mjs?worker';
 
-pdfjsLib.GlobalWorkerOptions.workerSrc = workerSrc;
+// Attach a worker instance so pdf.js never tries to dynamically import from a CDN.
+pdfjsLib.GlobalWorkerOptions.workerPort = new PdfJsWorker();
 
 export default function PDFCanvas({ pdfUrl, page = 1, scale = 1, onLoad, onLoadSuccess }) {
   const canvasRef = useRef(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const loadingTaskRef = useRef(null);
-  const renderTaskRef = useRef(null);
-  const pageRef = useRef(null);
-  const retriedRef = useRef(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -20,30 +18,22 @@ export default function PDFCanvas({ pdfUrl, page = 1, scale = 1, onLoad, onLoadS
       try {
         setLoading(true);
         setError(null);
-        if (renderTaskRef.current) {
-          try { renderTaskRef.current.cancel(); } catch (_) {}
-          renderTaskRef.current = null;
-        }
-        if (loadingTaskRef.current) {
-          try { await loadingTaskRef.current.destroy(); } catch (_) {}
-          loadingTaskRef.current = null;
-        }
 
+        // For older templates that still store a direct R2 public URL,
+        // rewrite it to our same-origin proxy to avoid CORS issues.
         let effectiveUrl = pdfUrl;
         try {
           const u = new URL(pdfUrl, window.location.origin);
           if (u.hostname.endsWith(".r2.dev")) {
+            // u.pathname already starts with "/uploads/..."
             const key = u.pathname.replace(/^\//, "");
             effectiveUrl = `/api/files/${encodeURIComponent(key)}`;
           }
         } catch (_) {
+          // If pdfUrl is not a valid URL, just use it as-is.
         }
 
-        pdfjsLib.GlobalWorkerOptions.workerSrc = workerSrc;
-
-        const task = pdfjsLib.getDocument({ url: effectiveUrl });
-        loadingTaskRef.current = task;
-        const pdf = await task.promise;
+        const pdf = await pdfjsLib.getDocument(effectiveUrl).promise;
         
         if (cancelled) return;
         
@@ -52,7 +42,6 @@ export default function PDFCanvas({ pdfUrl, page = 1, scale = 1, onLoad, onLoadS
         }
 
         const pdfPage = await pdf.getPage(page);
-        pageRef.current = pdfPage;
         
         if (cancelled) return;
 
@@ -65,12 +54,10 @@ export default function PDFCanvas({ pdfUrl, page = 1, scale = 1, onLoad, onLoadS
         canvas.height = viewport.height;
         canvas.width = viewport.width;
 
-        const renderTask = pdfPage.render({
+        await pdfPage.render({
           canvasContext: context,
           viewport: viewport
-        });
-        renderTaskRef.current = renderTask;
-        await renderTask.promise;
+        }).promise;
 
         if (cancelled) return;
 
@@ -81,18 +68,6 @@ export default function PDFCanvas({ pdfUrl, page = 1, scale = 1, onLoad, onLoadS
       } catch (err) {
         if (!cancelled) {
           console.error('PDF loading error:', err);
-          if (!retriedRef.current && String(err?.message || '').toLowerCase().includes('worker was terminated')) {
-            retriedRef.current = true;
-            try {
-              pdfjsLib.GlobalWorkerOptions.workerSrc = workerSrc;
-            } catch (_) {}
-            setTimeout(() => {
-              if (!cancelled && pdfUrl) {
-                loadPDF();
-              }
-            }, 0);
-            return;
-          }
           setError(err.message);
           setLoading(false);
         }
@@ -105,21 +80,6 @@ export default function PDFCanvas({ pdfUrl, page = 1, scale = 1, onLoad, onLoadS
 
     return () => {
       cancelled = true;
-      if (renderTaskRef.current) {
-        try { renderTaskRef.current.cancel(); } catch (_) {}
-        renderTaskRef.current = null;
-      }
-      if (pageRef.current) {
-        try { pageRef.current.cleanup(); } catch (_) {}
-        pageRef.current = null;
-      }
-      if (loadingTaskRef.current) {
-        const t = loadingTaskRef.current;
-        loadingTaskRef.current = null;
-        Promise.resolve().then(async () => {
-          try { await t.destroy(); } catch (_) {}
-        });
-      }
     };
   }, [pdfUrl, page, scale]);
 

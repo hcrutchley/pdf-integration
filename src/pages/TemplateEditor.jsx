@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Save, Sparkles, Play, Settings, Eye, Download, Upload } from 'lucide-react';
+import { ArrowLeft, Save, Sparkles, Play, Settings, Eye, Download } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -453,34 +453,6 @@ export default function TemplateEditor() {
             </div>
           </div>
           <div className="flex gap-2">
-            <div className="relative">
-              <input
-                type="file"
-                accept=".pdf"
-                onChange={async (e) => {
-                  const file = e.target.files?.[0];
-                  if (!file) return;
-                  
-                  try {
-                    const url = await fileStorage.uploadFile(file);
-                    handleSave({ pdf_url: url });
-                    toast.success('PDF uploaded successfully');
-                  } catch (error) {
-                    console.error('Upload failed:', error);
-                    toast.error('Failed to upload PDF');
-                  }
-                }}
-                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
-                disabled={isDetecting}
-              />
-              <Button
-                variant="outline"
-                disabled={isDetecting}
-              >
-                <Upload className="h-4 w-4 mr-2" />
-                {template.pdf_url ? 'Replace PDF' : 'Upload PDF'}
-              </Button>
-            </div>
             <Button
               onClick={handleDetectFields}
               disabled={isDetecting || !template.pdf_url}

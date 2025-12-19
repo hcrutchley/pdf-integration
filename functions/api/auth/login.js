@@ -1,47 +1,93 @@
-import { verifyPassword, createToken } from '../../_utils/auth';
+// functions/api/auth/login.js
+// Handles POST /api/auth/login
 
 export async function onRequestPost(context) {
-  const { request, env } = context;
+  const { env, request } = context;
   
   try {
     const { username, password } = await request.json();
     
     if (!username || !password) {
-      return new Response("Username and password required", { status: 400 });
+      return Response.json(
+        { error: "Username and password are required" },
+        { status: 400 }
+      );
     }
 
-    const user = await env.DB.prepare("SELECT * FROM users WHERE username = ?")
+    // Look up user in database
+    const { results } = await env.DB.prepare(
+      "SELECT id, data, created_date FROM entities WHERE entity_name = 'User' AND json_extract(data, '$.username') = ?"
+    )
       .bind(username)
-      .first();
+      .all();
 
-    if (!user) {
-      return new Response("Invalid credentials", { status: 401 });
+    if (!results.length) {
+      return Response.json(
+        { error: "Invalid username or password" },
+        { status: 401 }
+      );
     }
 
-    const isValid = await verifyPassword(password, user.password_hash);
+    const row = results[0];
+    const userData = JSON.parse(row.data);
     
-    if (!isValid) {
-      return new Response("Invalid credentials", { status: 401 });
+    // Hash the provided password and compare
+    const hashedInput = await hashPassword(password);
+    
+    if (hashedInput !== userData.password_hash) {
+      return Response.json(
+        { error: "Invalid username or password" },
+        { status: 401 }
+      );
     }
 
-    const token = await createToken(user, env);
-
-    const headers = new Headers();
-    headers.append("Set-Cookie", `auth_token=${token}; HttpOnly; Path=/; SameSite=Strict; Max-Age=86400; Secure`);
+    // Generate a session token
+    const sessionToken = crypto.randomUUID();
+    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(); // 7 days
     
-    return Response.json({ 
-      user: { id: user.id, username: user.username } 
-    }, { headers });
+    // Store session in database
+    const sessionId = crypto.randomUUID();
+    const now = new Date().toISOString();
+    const sessionData = {
+      token: sessionToken,
+      user_id: row.id,
+      username: userData.username,
+      email: userData.email,
+      expires_at: expiresAt,
+    };
+    
+    await env.DB.prepare(
+      "INSERT INTO entities (id, entity_name, data, created_date, updated_date) VALUES (?, ?, ?, ?, ?)"
+    )
+      .bind(sessionId, "Session", JSON.stringify(sessionData), now, now)
+      .run();
 
+    // Return user info and token
+    return Response.json({
+      token: sessionToken,
+      user: {
+        id: row.id,
+        username: userData.username,
+        email: userData.email || "",
+        name: userData.name || userData.username,
+      },
+      expires_at: expiresAt,
+    });
+    
   } catch (error) {
     console.error("Login error:", error);
-    
-    if (error.message && error.message.includes("no such table")) {
-      return Response.json({ 
-        error: "Database not initialized. Please visit /api/setup to initialize the database." 
-      }, { status: 500 });
-    }
-    
-    return Response.json({ error: error.message }, { status: 500 });
+    return Response.json(
+      { error: "Login failed" },
+      { status: 500 }
+    );
   }
+}
+
+// Hash password using SHA-256
+async function hashPassword(password) {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(password);
+  const hashBuffer = await crypto.subtle.digest("SHA-256", data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(b => b.toString(16).padStart(2, "0")).join("");
 }
