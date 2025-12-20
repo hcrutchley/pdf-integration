@@ -3,12 +3,12 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Database, Zap, Type, Sparkles, ChevronDown, ChevronRight } from 'lucide-react';
+import { Database, Zap, Type, Sparkles, Layers, Settings } from 'lucide-react';
 import PDFViewer from './PDFViewer';
 import FieldPropertiesPanel from './FieldPropertiesPanel';
 import QuickFieldDialog from './QuickFieldDialog';
 import SearchableSelect from '../ui/SearchableSelect';
-import { AccordionSection } from './EditorLayout';
+import { cn } from '@/lib/utils';
 import { useNavigate } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 
@@ -42,6 +42,14 @@ export default function DesignView({
 }) {
     const navigate = useNavigate();
     const [quickAddOpen, setQuickAddOpen] = useState(false);
+    const [panelTab, setPanelTab] = useState('properties'); // 'properties' | 'data' | 'automation'
+
+    // Auto-switch to properties when field is selected
+    useEffect(() => {
+        if (selectedField) {
+            setPanelTab('properties');
+        }
+    }, [selectedField?.id]);
 
     // Shift+A keyboard shortcut
     useEffect(() => {
@@ -115,160 +123,200 @@ export default function DesignView({
                 </div>
             </div>
 
-            {/* Right Panel - Properties + Settings Accordion */}
+            {/* Right Panel with Tabs */}
             <div className="w-80 flex-shrink-0 bg-white dark:bg-slate-800 border-l border-slate-200 dark:border-slate-700 shadow-xl z-20 flex flex-col h-full overflow-hidden">
+
+                {/* Panel Tab Navigation */}
+                <div className="flex border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50">
+                    <button
+                        onClick={() => setPanelTab('properties')}
+                        className={cn(
+                            "flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 text-xs font-medium transition-all border-b-2",
+                            panelTab === 'properties'
+                                ? "border-teal-500 text-teal-600 dark:text-teal-400 bg-white dark:bg-slate-800"
+                                : "border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
+                        )}
+                    >
+                        <Layers className="h-3.5 w-3.5" />
+                        Properties
+                    </button>
+                    <button
+                        onClick={() => setPanelTab('data')}
+                        className={cn(
+                            "flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 text-xs font-medium transition-all border-b-2",
+                            panelTab === 'data'
+                                ? "border-teal-500 text-teal-600 dark:text-teal-400 bg-white dark:bg-slate-800"
+                                : "border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
+                        )}
+                    >
+                        <Database className="h-3.5 w-3.5" />
+                        Data
+                    </button>
+                    <button
+                        onClick={() => setPanelTab('automation')}
+                        className={cn(
+                            "flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 text-xs font-medium transition-all border-b-2",
+                            panelTab === 'automation'
+                                ? "border-teal-500 text-teal-600 dark:text-teal-400 bg-white dark:bg-slate-800"
+                                : "border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
+                        )}
+                    >
+                        <Zap className="h-3.5 w-3.5" />
+                        Auto
+                    </button>
+                </div>
+
+                {/* Panel Content */}
                 <div className="flex-1 overflow-y-auto">
-                    {/* Field Properties - Always visible when field selected */}
-                    {selectedField && (
-                        <div className="border-b border-slate-200 dark:border-slate-700">
-                            <div className="px-4 py-3 bg-slate-50 dark:bg-slate-900/50 flex items-center gap-2">
-                                <div className="w-2 h-2 rounded-full bg-teal-500 shadow-sm shadow-teal-500/50"></div>
-                                <h2 className="text-xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-widest">
-                                    Field Properties
-                                </h2>
+
+                    {/* Properties Tab */}
+                    {panelTab === 'properties' && (
+                        <>
+                            {selectedField ? (
+                                <FieldPropertiesPanel
+                                    field={selectedField}
+                                    onUpdate={onUpdateField}
+                                    airtableFields={airtableFields}
+                                />
+                            ) : (
+                                <div className="flex flex-col items-center justify-center h-full p-6 text-center">
+                                    <div className="w-12 h-12 rounded-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center mb-3">
+                                        <Type className="h-5 w-5 text-slate-400" />
+                                    </div>
+                                    <p className="text-sm text-slate-500 dark:text-slate-400">
+                                        Select a field to edit
+                                    </p>
+                                    <p className="text-xs text-slate-400 mt-2">
+                                        Or press <kbd className="px-1.5 py-0.5 bg-slate-200 dark:bg-slate-700 rounded text-[10px] font-mono">⇧A</kbd> to quick add
+                                    </p>
+                                </div>
+                            )}
+                        </>
+                    )}
+
+                    {/* Data Tab */}
+                    {panelTab === 'data' && (
+                        <div className="p-4 space-y-4">
+                            <div>
+                                <Label className="text-xs font-semibold text-slate-500 uppercase mb-1.5 block">Connection</Label>
+                                <SearchableSelect
+                                    value={template.airtable_connection_id || ''}
+                                    onChange={(value) => onSettingsSave({ airtable_connection_id: value })}
+                                    options={connections.map(c => ({ value: c.id, label: c.name }))}
+                                    placeholder="Select connection"
+                                />
                             </div>
-                            <FieldPropertiesPanel
-                                field={selectedField}
-                                onUpdate={onUpdateField}
-                                airtableFields={airtableFields}
-                            />
+
+                            <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                    <Label className="text-xs font-semibold text-slate-500 uppercase mb-1.5 block">Base</Label>
+                                    <SearchableSelect
+                                        value={template.airtable_base_id || ''}
+                                        onChange={(value) => onSettingsSave({ airtable_base_id: value, airtable_table_name: '' })}
+                                        options={availableBases.map(b => ({ value: b.id, label: b.name }))}
+                                        placeholder="Base"
+                                        disabled={!template.airtable_connection_id}
+                                        loading={loadingBases}
+                                    />
+                                </div>
+                                <div>
+                                    <Label className="text-xs font-semibold text-slate-500 uppercase mb-1.5 block">Table</Label>
+                                    <SearchableSelect
+                                        value={template.airtable_table_name || ''}
+                                        onChange={(value) => onSettingsSave({ airtable_table_name: value })}
+                                        options={availableTables.map(t => ({ value: t.name, label: t.name }))}
+                                        placeholder="Table"
+                                        disabled={!template.airtable_base_id}
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="pt-2 border-t border-slate-200 dark:border-slate-700">
+                                <Label className="text-xs font-semibold text-slate-500 uppercase mb-1.5 block">Test Record</Label>
+                                <SearchableSelect
+                                    value={selectedTestRecord || ''}
+                                    onChange={setSelectedTestRecord}
+                                    options={testRecords.map(r => ({
+                                        value: r.id,
+                                        label: r.fields['Application number'] || r.fields.Name || r.fields.Title || r.id.substring(0, 8)
+                                    }))}
+                                    placeholder="Select for preview..."
+                                    disabled={!template.airtable_table_name}
+                                />
+                                <p className="text-xs text-slate-400 mt-1.5">Used for live preview generation</p>
+                            </div>
+
+                            <div className="pt-2 border-t border-slate-200 dark:border-slate-700">
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={onDetectFields}
+                                    disabled={isDetecting}
+                                    className="w-full"
+                                >
+                                    <Sparkles className="h-4 w-4 mr-2 text-amber-500" />
+                                    {isDetecting ? 'Detecting...' : 'AI Field Detection'}
+                                </Button>
+                                <p className="text-xs text-slate-400 mt-1.5 text-center">Auto-detect fillable areas in PDF</p>
+                            </div>
                         </div>
                     )}
 
-                    {/* Settings Sections - Collapsible */}
-                    {settingsOpen && (
-                        <div className="border-t border-slate-200 dark:border-slate-700">
-                            <div className="px-4 py-2 bg-slate-100 dark:bg-slate-800">
-                                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Settings</span>
-                            </div>
-
-                            {/* Data Source */}
-                            <AccordionSection title="Data Source" icon={Database} defaultOpen={!template.airtable_connection_id}>
-                                <div className="space-y-3">
+                    {/* Automation Tab */}
+                    {panelTab === 'automation' && (
+                        <div className="p-4 space-y-4">
+                            <div>
+                                <h3 className="text-xs font-semibold text-slate-500 uppercase mb-3">Trigger Conditions</h3>
+                                <div className="grid grid-cols-2 gap-3">
                                     <div>
-                                        <Label className="text-xs font-semibold text-slate-500 uppercase mb-1 block">Connection</Label>
-                                        <SearchableSelect
-                                            value={template.airtable_connection_id || ''}
-                                            onChange={(value) => onSettingsSave({ airtable_connection_id: value })}
-                                            options={connections.map(c => ({ value: c.id, label: c.name }))}
-                                            placeholder="Select connection"
-                                        />
-                                    </div>
-                                    <div className="grid grid-cols-2 gap-2">
-                                        <div>
-                                            <Label className="text-xs font-semibold text-slate-500 uppercase mb-1 block">Base</Label>
-                                            <SearchableSelect
-                                                value={template.airtable_base_id || ''}
-                                                onChange={(value) => onSettingsSave({ airtable_base_id: value, airtable_table_name: '' })}
-                                                options={availableBases.map(b => ({ value: b.id, label: b.name }))}
-                                                placeholder="Base"
-                                                disabled={!template.airtable_connection_id}
-                                                loading={loadingBases}
-                                            />
-                                        </div>
-                                        <div>
-                                            <Label className="text-xs font-semibold text-slate-500 uppercase mb-1 block">Table</Label>
-                                            <SearchableSelect
-                                                value={template.airtable_table_name || ''}
-                                                onChange={(value) => onSettingsSave({ airtable_table_name: value })}
-                                                options={availableTables.map(t => ({ value: t.name, label: t.name }))}
-                                                placeholder="Table"
-                                                disabled={!template.airtable_base_id}
-                                            />
-                                        </div>
-                                    </div>
-                                    <div>
-                                        <Label className="text-xs font-semibold text-slate-500 uppercase mb-1 block">Test Record</Label>
-                                        <SearchableSelect
-                                            value={selectedTestRecord || ''}
-                                            onChange={setSelectedTestRecord}
-                                            options={testRecords.map(r => ({
-                                                value: r.id,
-                                                label: r.fields['Application number'] || r.fields.Name || r.fields.Title || r.id.substring(0, 8)
-                                            }))}
-                                            placeholder="Select for preview..."
-                                            disabled={!template.airtable_table_name}
-                                        />
-                                    </div>
-                                </div>
-                            </AccordionSection>
-
-                            {/* Automation */}
-                            <AccordionSection title="Automation" icon={Zap}>
-                                <div className="space-y-3">
-                                    <div className="grid grid-cols-2 gap-2">
-                                        <div>
-                                            <Label className="text-xs font-semibold text-slate-500 uppercase mb-1 block">Trigger Field</Label>
-                                            <Input
-                                                value={template.trigger_field || ''}
-                                                onChange={(e) => onSettingsSave({ trigger_field: e.target.value })}
-                                                placeholder="e.g. Status"
-                                                className="h-8 text-sm"
-                                            />
-                                        </div>
-                                        <div>
-                                            <Label className="text-xs font-semibold text-slate-500 uppercase mb-1 block">Trigger Value</Label>
-                                            <Input
-                                                value={template.trigger_value || ''}
-                                                onChange={(e) => onSettingsSave({ trigger_value: e.target.value })}
-                                                placeholder="e.g. Approved"
-                                                className="h-8 text-sm"
-                                            />
-                                        </div>
-                                    </div>
-                                    <div>
-                                        <Label className="text-xs font-semibold text-slate-500 uppercase mb-1 block">Output Field</Label>
+                                        <Label className="text-xs text-slate-500 mb-1 block">Field Name</Label>
                                         <Input
-                                            value={template.output_field || ''}
-                                            onChange={(e) => onSettingsSave({ output_field: e.target.value })}
-                                            placeholder="e.g. Generated PDF"
+                                            value={template.trigger_field || ''}
+                                            onChange={(e) => onSettingsSave({ trigger_field: e.target.value })}
+                                            placeholder="e.g. Status"
                                             className="h-8 text-sm"
                                         />
                                     </div>
-                                    <div className="flex items-center space-x-2">
-                                        <Checkbox
-                                            id="setup-polling"
-                                            checked={setupPollingNow}
-                                            onCheckedChange={setSetupPollingNow}
+                                    <div>
+                                        <Label className="text-xs text-slate-500 mb-1 block">Equals Value</Label>
+                                        <Input
+                                            value={template.trigger_value || ''}
+                                            onChange={(e) => onSettingsSave({ trigger_value: e.target.value })}
+                                            placeholder="e.g. Approved"
+                                            className="h-8 text-sm"
                                         />
-                                        <Label htmlFor="setup-polling" className="cursor-pointer text-xs text-slate-600 dark:text-slate-300">
-                                            Enable polling
-                                        </Label>
                                     </div>
                                 </div>
-                            </AccordionSection>
-
-                            {/* AI Detection */}
-                            <AccordionSection title="AI Detection" icon={Sparkles}>
-                                <div className="space-y-2">
-                                    <p className="text-xs text-slate-500">Automatically detect fillable field locations in your PDF.</p>
-                                    <Button
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={onDetectFields}
-                                        disabled={isDetecting}
-                                        className="w-full"
-                                    >
-                                        <Sparkles className="h-4 w-4 mr-2 text-amber-500" />
-                                        {isDetecting ? 'Analysing...' : 'Detect Fields'}
-                                    </Button>
-                                </div>
-                            </AccordionSection>
-                        </div>
-                    )}
-
-                    {/* Empty state when nothing selected and settings closed */}
-                    {!selectedField && !settingsOpen && (
-                        <div className="flex flex-col items-center justify-center h-full p-6 text-center">
-                            <div className="w-12 h-12 rounded-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center mb-3">
-                                <Type className="h-5 w-5 text-slate-400" />
+                                <p className="text-xs text-slate-400 mt-1.5">Generate PDF when this condition is met</p>
                             </div>
-                            <p className="text-sm text-slate-500 dark:text-slate-400">
-                                Select a field to edit its properties
-                            </p>
-                            <p className="text-xs text-slate-400 mt-2">
-                                Or press <kbd className="px-1.5 py-0.5 bg-slate-200 dark:bg-slate-700 rounded text-[10px] font-mono">⇧A</kbd> to quick add
-                            </p>
+
+                            <div className="pt-3 border-t border-slate-200 dark:border-slate-700">
+                                <h3 className="text-xs font-semibold text-slate-500 uppercase mb-3">Output</h3>
+                                <div>
+                                    <Label className="text-xs text-slate-500 mb-1 block">Attachment Field</Label>
+                                    <Input
+                                        value={template.output_field || ''}
+                                        onChange={(e) => onSettingsSave({ output_field: e.target.value })}
+                                        placeholder="e.g. Generated PDF"
+                                        className="h-8 text-sm"
+                                    />
+                                    <p className="text-xs text-slate-400 mt-1.5">Where to save the generated PDF</p>
+                                </div>
+                            </div>
+
+                            <div className="pt-3 border-t border-slate-200 dark:border-slate-700">
+                                <div className="flex items-center space-x-2">
+                                    <Checkbox
+                                        id="setup-polling"
+                                        checked={setupPollingNow}
+                                        onCheckedChange={setSetupPollingNow}
+                                    />
+                                    <Label htmlFor="setup-polling" className="cursor-pointer text-sm text-slate-600 dark:text-slate-300">
+                                        Enable active polling
+                                    </Label>
+                                </div>
+                                <p className="text-xs text-slate-400 mt-1.5 ml-6">Check Airtable periodically for triggers</p>
+                            </div>
                         </div>
                     )}
                 </div>
