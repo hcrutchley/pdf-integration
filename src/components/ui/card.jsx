@@ -1,8 +1,12 @@
 import React from 'react';
 
-export function Card({ className = '', ...props }) {
-  const base =
-    'rounded-xl border border-slate-200 bg-white shadow-sm dark:bg-slate-900 dark:border-slate-800';
+export function Card({ className = '', hover = true, ...props }) {
+  const base = [
+    'rounded-xl border border-slate-200 bg-white dark:bg-slate-900 dark:border-slate-800',
+    'shadow-md shadow-slate-200/50 dark:shadow-slate-950/30',
+    'transition-all duration-300 ease-out',
+    hover && 'hover:shadow-xl hover:shadow-slate-300/50 dark:hover:shadow-slate-950/50 hover:-translate-y-0.5',
+  ].filter(Boolean).join(' ');
   return <div className={[base, className].join(' ')} {...props} />;
 }
 
@@ -30,6 +34,7 @@ export function CardFooter({ className = '', ...props }) {
   const base = 'flex items-center p-5 pt-0 border-t border-slate-100 dark:border-slate-800';
   return <div className={[base, className].join(' ')} {...props} />;
 }
+
 
 
 
