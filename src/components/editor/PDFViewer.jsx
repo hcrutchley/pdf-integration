@@ -1031,9 +1031,15 @@ export default function PDFViewer({
     const remainingFields = localFields.filter(f => !selectedFields.includes(f.id));
     const updatedFields = [...remainingFields, mergedField];
 
-    queryClient.setQueryData(['template', templateId], {
-      ...template,
-      fields: updatedFields
+    queryClient.setQueryData(['template', templateId], (prev) => {
+      const newData = {
+        ...prev, // Use prev, not template prop
+        fields: updatedFields
+      };
+      if (!newData.pdf_url && (prev?.pdf_url || template?.pdf_url)) {
+        newData.pdf_url = prev?.pdf_url || template?.pdf_url;
+      }
+      return newData;
     });
     updateMutation.mutate({ fields: updatedFields });
     setSelectedFields([mergedField.id]);
@@ -1073,9 +1079,15 @@ export default function PDFViewer({
     const remainingFields = localFields.filter(f => f.id !== field.id);
     const updatedFields = [...remainingFields, field1, field2];
 
-    queryClient.setQueryData(['template', templateId], {
-      ...template,
-      fields: updatedFields
+    queryClient.setQueryData(['template', templateId], (prev) => {
+      const newData = {
+        ...prev,
+        fields: updatedFields
+      };
+      if (!newData.pdf_url && (prev?.pdf_url || template?.pdf_url)) {
+        newData.pdf_url = prev?.pdf_url || template?.pdf_url;
+      }
+      return newData;
     });
     updateMutation.mutate({ fields: updatedFields });
     setSelectedFields([field1.id, field2.id]);
@@ -1138,10 +1150,16 @@ export default function PDFViewer({
       setHistoryIndex(newIndex);
 
       // Sync to parent
-      queryClient.setQueryData(['template', templateId], {
-        ...template,
-        fields: snapshot.fields,
-        guides: snapshot.guides
+      queryClient.setQueryData(['template', templateId], (prev) => {
+        const newData = {
+          ...prev,
+          fields: snapshot.fields,
+          guides: snapshot.guides
+        };
+        if (!newData.pdf_url && (prev?.pdf_url || template?.pdf_url)) {
+          newData.pdf_url = prev?.pdf_url || template?.pdf_url;
+        }
+        return newData;
       });
       updateMutation.mutate({ fields: snapshot.fields, guides: snapshot.guides });
     }
@@ -1158,10 +1176,16 @@ export default function PDFViewer({
       setHistoryIndex(newIndex);
 
       // Sync to parent
-      queryClient.setQueryData(['template', templateId], {
-        ...template,
-        fields: snapshot.fields,
-        guides: snapshot.guides
+      queryClient.setQueryData(['template', templateId], (prev) => {
+        const newData = {
+          ...prev,
+          fields: snapshot.fields,
+          guides: snapshot.guides
+        };
+        if (!newData.pdf_url && (prev?.pdf_url || template?.pdf_url)) {
+          newData.pdf_url = prev?.pdf_url || template?.pdf_url;
+        }
+        return newData;
       });
       updateMutation.mutate({ fields: snapshot.fields, guides: snapshot.guides });
     }
@@ -1343,9 +1367,15 @@ export default function PDFViewer({
           e.preventDefault();
           // Batch delete all fields at once
           const remainingFields = localFields.filter(f => !selectedFields.includes(f.id));
-          queryClient.setQueryData(['template', templateId], {
-            ...template,
-            fields: remainingFields
+          queryClient.setQueryData(['template', templateId], (prev) => {
+            const newData = {
+              ...prev,
+              fields: remainingFields
+            };
+            if (!newData.pdf_url && (prev?.pdf_url || template?.pdf_url)) {
+              newData.pdf_url = prev?.pdf_url || template?.pdf_url;
+            }
+            return newData;
           });
           updateMutation.mutate({ fields: remainingFields });
           setSelectedFields([]);
