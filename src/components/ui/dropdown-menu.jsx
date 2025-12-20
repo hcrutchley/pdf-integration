@@ -94,3 +94,9 @@ export function DropdownMenuItem({ className = '', onClick, children }) {
     </button>
   );
 }
+
+export function DropdownMenuSeparator({ className = '' }) {
+  return (
+    <div className={`my-1 h-px bg-slate-200 dark:bg-slate-700 ${className}`} />
+  );
+}

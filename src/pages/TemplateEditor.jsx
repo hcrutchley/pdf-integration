@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -11,6 +11,8 @@ import EditorLayout from '../components/editor/EditorLayout';
 import SettingsView from '../components/editor/SettingsView';
 import DesignView from '../components/editor/DesignView';
 import { createPageUrl } from '@/utils';
+
+const AUTOSAVE_INTERVAL_MS = 60000; // 60 seconds
 
 export default function TemplateEditor() {
   const [searchParams] = useSearchParams();
@@ -31,7 +33,10 @@ export default function TemplateEditor() {
   const [selectedTestRecord, setSelectedTestRecord] = useState(null);
   const [isPreviewing, setIsPreviewing] = useState(false);
   const [guides, setGuides] = useState({ vertical: [], horizontal: [] });
-  const saveTimeoutRef = useRef(null);
+  const [isSyncing, setIsSyncing] = useState(false);
+
+  // Dirty flag for tracking unsaved changes
+  const isDirtyRef = useRef(false);
 
   const { data: template, isLoading } = useQuery({
     queryKey: ['template', templateId],
@@ -51,16 +56,71 @@ export default function TemplateEditor() {
     queryFn: () => db.connections.getAll()
   });
 
-  const updateMutation = useMutation({
-    mutationFn: (data) => db.templates.update(templateId, data),
-    onSuccess: () => {
-      // Just invalidate and refetch to ensure we have the absolute source of truth
-      // relying on the optimistic update in handleSave for immediate UI feedback
+  // Silent sync to server (no toast)
+  const syncToServer = useCallback(async (showToast = false) => {
+    if (!templateId) return;
+
+    try {
+      setIsSyncing(true);
+      const currentCache = queryClient.getQueryData(['template', templateId]);
+      if (!currentCache) return;
+
+      const latestTemplate = await db.templates.get(templateId);
+
+      const fullData = {
+        ...latestTemplate,
+        ...currentCache,
+        guides // Include current guides state
+      };
+
+      // Ensure pdf_url is never lost
+      if (!fullData.pdf_url && latestTemplate?.pdf_url) {
+        fullData.pdf_url = latestTemplate.pdf_url;
+      }
+
+      const { id, created_date, updated_date, ...sanitizedData } = fullData;
+      await db.templates.update(templateId, sanitizedData);
+
+      isDirtyRef.current = false;
+
+      // Invalidate queries to sync
       queryClient.invalidateQueries(['templates']);
       queryClient.invalidateQueries(['template', templateId]);
-      toast.success('Template saved successfully');
+
+      if (showToast) {
+        toast.success('Template saved successfully');
+      }
+    } catch (error) {
+      console.error('Sync failed:', error);
+      if (showToast) {
+        toast.error('Failed to save changes');
+      }
+    } finally {
+      setIsSyncing(false);
     }
-  });
+  }, [templateId, queryClient, guides]);
+
+  // Autosave interval (60 seconds)
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (isDirtyRef.current) {
+        console.log('[AUTOSAVE] Syncing dirty changes...');
+        syncToServer(false); // Silent autosave
+      }
+    }, AUTOSAVE_INTERVAL_MS);
+
+    return () => clearInterval(interval);
+  }, [syncToServer]);
+
+  // Sync on unmount if dirty
+  useEffect(() => {
+    return () => {
+      if (isDirtyRef.current) {
+        console.log('[UNMOUNT] Syncing unsaved changes...');
+        syncToServer(false);
+      }
+    };
+  }, [syncToServer]);
 
   // Load bases when connection changes
   useEffect(() => {
@@ -145,7 +205,6 @@ export default function TemplateEditor() {
         { maxRecords: 100 }
       );
       setTestRecords(records);
-      // Auto-select first record if none selected
       if (records.length > 0 && !selectedTestRecord) {
         setSelectedTestRecord(records[0].id);
       }
@@ -173,9 +232,12 @@ export default function TemplateEditor() {
         underline: template.default_underline || false
       }));
 
-      await updateMutation.mutateAsync({
+      // Update cache and mark dirty
+      queryClient.setQueryData(['template', templateId], (prev) => ({
+        ...prev,
         fields: fieldsWithIds
-      });
+      }));
+      isDirtyRef.current = true;
     } catch (error) {
       console.error('Field detection failed:', error);
       alert('Failed to detect fields. Please try again.');
@@ -184,8 +246,20 @@ export default function TemplateEditor() {
     }
   };
 
-  const handleUpdateField = (fieldId, updates, skipSave = false) => {
-    // Get latest fields from CACHE to avoid stale closures
+  // Optimistic update helper - updates cache and marks dirty
+  const updateCache = useCallback((updates) => {
+    queryClient.setQueryData(['template', templateId], (prev) => {
+      const newData = { ...prev, ...updates };
+      // Safety: preserve pdf_url
+      if (!newData.pdf_url && (prev?.pdf_url || template?.pdf_url)) {
+        newData.pdf_url = prev?.pdf_url || template?.pdf_url;
+      }
+      return newData;
+    });
+    isDirtyRef.current = true;
+  }, [queryClient, templateId, template?.pdf_url]);
+
+  const handleUpdateField = useCallback((fieldId, updates) => {
     const currentData = queryClient.getQueryData(['template', templateId]);
     const currentFields = currentData?.fields || template?.fields || [];
 
@@ -193,37 +267,10 @@ export default function TemplateEditor() {
       f.id === fieldId ? { ...f, ...updates } : f
     );
 
-    // Skip save during active dragging/resizing for performance
-    if (skipSave) {
-      queryClient.setQueryData(['template', templateId], (prev) => ({
-        ...prev,
-        fields: updatedFields
-      }));
-      return;
-    }
+    updateCache({ fields: updatedFields });
+  }, [queryClient, templateId, template?.fields, updateCache]);
 
-    // Immediate optimistic update for local responsiveness
-    queryClient.setQueryData(['template', templateId], (prev) => {
-      const newData = { ...prev, fields: updatedFields };
-      // SAFETY CHECK
-      if (!newData.pdf_url && (prev?.pdf_url || template?.pdf_url)) {
-        newData.pdf_url = prev?.pdf_url || template?.pdf_url;
-      }
-      return newData;
-    });
-
-    // Debounce the actual save
-    if (saveTimeoutRef.current) {
-      clearTimeout(saveTimeoutRef.current);
-    }
-
-    saveTimeoutRef.current = setTimeout(() => {
-      // Use handleSave for consistency and safety
-      handleSave({ fields: updatedFields });
-    }, 2000);
-  };
-
-  const handleDeleteField = (fieldId) => {
+  const handleDeleteField = useCallback((fieldId) => {
     const currentData = queryClient.getQueryData(['template', templateId]);
     const currentFields = currentData?.fields || template?.fields || [];
     const updatedFields = currentFields.filter(f => f.id !== fieldId);
@@ -231,28 +278,25 @@ export default function TemplateEditor() {
     if (selectedField?.id === fieldId) {
       setSelectedField(null);
     }
-    // Clear any pending saves and delete immediately
-    if (saveTimeoutRef.current) {
-      clearTimeout(saveTimeoutRef.current);
-    }
 
-    // Use safe handleSave
-    handleSave({ fields: updatedFields });
-  };
+    updateCache({ fields: updatedFields });
+  }, [queryClient, templateId, template?.fields, selectedField, updateCache]);
 
-  const handleAddField = (newField) => {
+  const handleAddField = useCallback((newField) => {
     const currentData = queryClient.getQueryData(['template', templateId]);
     const currentFields = currentData?.fields || template?.fields || [];
     const updatedFields = [...currentFields, newField];
-    handleSave({ fields: updatedFields });
-  };
 
-  const handleBulkFieldAdd = (newFields) => {
+    updateCache({ fields: updatedFields });
+  }, [queryClient, templateId, template?.fields, updateCache]);
+
+  const handleBulkFieldAdd = useCallback((newFields) => {
     const currentData = queryClient.getQueryData(['template', templateId]);
     const currentFields = currentData?.fields || template?.fields || [];
     const updatedFields = [...currentFields, ...newFields];
-    handleSave({ fields: updatedFields });
-  };
+
+    updateCache({ fields: updatedFields });
+  }, [queryClient, templateId, template?.fields, updateCache]);
 
   const handlePreview = async () => {
     if (!selectedTestRecord) {
@@ -278,7 +322,6 @@ export default function TemplateEditor() {
         record.fields
       );
 
-      // Open in new tab instead of auto-download
       const url = URL.createObjectURL(pdfBlob);
       window.open(url, '_blank');
     } catch (error) {
@@ -289,62 +332,17 @@ export default function TemplateEditor() {
     }
   };
 
-  const handleSave = async (updates) => {
-    try {
-      // 0. OPTIMISTIC UPDATE (Moved to top for instant feedback on Add/Delete)
-      queryClient.setQueryData(['template', templateId], (prev) => {
-        const newData = {
-          ...prev,
-          ...updates
-        };
-        // CRITICAL: Ensure `pdf_url` is never lost during optimistic update
-        if (!newData.pdf_url && (prev?.pdf_url || template?.pdf_url)) {
-          newData.pdf_url = prev?.pdf_url || template?.pdf_url;
-        }
-        return newData;
-      });
+  // Manual save (with toast)
+  const handleManualSave = useCallback(() => {
+    // Include guides in the update
+    updateCache({ guides });
+    syncToServer(true); // Show toast for manual save
+  }, [guides, updateCache, syncToServer]);
 
-      // 1. Fetch latest "truth" from server to ensure we don't overwrite with stale data
-      const latestTemplate = await db.templates.get(templateId);
-
-      // 2. Client-Side Merge: Apply our updates to the fresh template
-      // CRITICAL: Use current cache data as the base for client state, NOT the closure 'template' which might be stale
-      const currentCache = queryClient.getQueryData(['template', templateId]);
-      const clientState = currentCache || template;
-
-      const fullData = {
-        ...latestTemplate,
-        ...clientState, // Use fresh client state
-        ...updates   // Apply the new updates on top
-      };
-
-      // CRITICAL: Ensure `pdf_url` is never lost. 
-      if (!fullData.pdf_url && latestTemplate.pdf_url) {
-        fullData.pdf_url = latestTemplate.pdf_url;
-      }
-
-      // 3. Sanitize: Remove readonly fields that shouldn't be sent back
-      const { id, created_date, updated_date, ...sanitizedData } = fullData;
-
-      // 4. Send the sanitized full object
-      await updateMutation.mutateAsync(sanitizedData);
-
-      // If setup polling now is checked and all required fields are set
-      if (setupPollingNow && updates.status === 'active') {
-        const pollingConfig = await db.pollingConfig.get();
-        if (pollingConfig && !pollingConfig.enabled) {
-          await db.pollingConfig.createOrUpdate({
-            enabled: true,
-            interval_minutes: pollingConfig.interval_minutes || 5,
-            last_poll_time: new Date().toISOString()
-          });
-        }
-      }
-    } catch (error) {
-      console.error("Save failed:", error);
-      toast.error("Failed to save changes. Please try again.");
-    }
-  };
+  // Settings save handler (for SettingsView changes)
+  const handleSettingsSave = useCallback((updates) => {
+    updateCache(updates);
+  }, [updateCache]);
 
   if (isLoading) {
     return (
@@ -365,13 +363,13 @@ export default function TemplateEditor() {
   return (
     <EditorLayout
       templateName={template.name}
-      activeTab={mode === 'config' ? 'settings' : 'design'} // Mapping legacy mode to new tab names
+      activeTab={mode === 'config' ? 'settings' : 'design'}
       onTabChange={(tab) => setMode(tab === 'settings' ? 'config' : 'editor')}
-      onSave={() => handleSave({ guides })}
+      onSave={handleManualSave}
       onPreview={handlePreview}
       isPreviewing={isPreviewing}
       canPreview={!!(selectedTestRecord && template.airtable_connection_id)}
-      isSaving={updateMutation.isLoading}
+      isSaving={isSyncing}
     >
       {mode === 'config' ? (
         <SettingsView
@@ -383,7 +381,7 @@ export default function TemplateEditor() {
           selectedTestRecord={selectedTestRecord}
           setSelectedTestRecord={setSelectedTestRecord}
           loadingBases={loadingBases}
-          onSave={handleSave}
+          onSave={handleSettingsSave}
           onDetectFields={handleDetectFields}
           isDetecting={isDetecting}
           setupPollingNow={setupPollingNow}
@@ -402,7 +400,6 @@ export default function TemplateEditor() {
           setGuides={setGuides}
           queryClient={queryClient}
           templateId={templateId}
-          updateMutation={updateMutation}
           airtableFields={airtableFields}
         />
       )}
