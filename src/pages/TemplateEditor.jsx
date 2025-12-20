@@ -1,24 +1,15 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Save, Sparkles, Play, Settings, Eye, Download } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from 'sonner';
 import { db } from '../components/services/database';
 import { aiService } from '../components/services/aiService';
 import { airtableService } from '../components/services/airtableService';
 import { fileStorage } from '../components/services/fileStorage';
 import { pdfService } from '../components/services/pdfService';
-import SearchableSelect from '../components/ui/SearchableSelect';
-import PDFViewer from '../components/editor/PDFViewer';
-import FieldPropertiesPanel from '../components/editor/FieldPropertiesPanel';
-import FieldConfiguration from '../components/editor/FieldConfiguration';
-import DefaultStyleSettings from '../components/editor/DefaultStyleSettings';
+import EditorLayout from '../components/editor/EditorLayout';
+import SettingsView from '../components/editor/SettingsView';
+import DesignView from '../components/editor/DesignView';
 import { createPageUrl } from '@/utils';
 
 export default function TemplateEditor() {
@@ -370,7 +361,7 @@ export default function TemplateEditor() {
   if (isLoading) {
     return (
       <div className="min-h-screen bg-slate-50 dark:bg-slate-900 flex items-center justify-center">
-        <div className="text-slate-600 dark:text-slate-400">Loading...</div>
+        <div className="text-slate-600 dark:text-slate-400 animate-pulse">Loading Studio...</div>
       </div>
     );
   }
@@ -383,294 +374,50 @@ export default function TemplateEditor() {
     );
   }
 
-  if (mode === 'editor') {
-    return (
-      <div className="min-h-screen bg-slate-50 dark:bg-slate-900 flex flex-col">
-        {/* Header */}
-        <div className="bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 px-6 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => navigate(createPageUrl('Templates'))}
-              >
-                <ArrowLeft className="h-5 w-5" />
-              </Button>
-              <div>
-                <h1 className="text-xl font-bold text-slate-900 dark:text-slate-100">
-                  {template.name}
-                </h1>
-              </div>
-            </div>
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                onClick={() => setMode('config')}
-              >
-                <Settings className="h-4 w-4 mr-2" />
-                Settings
-              </Button>
-              <Button
-                onClick={() => {
-                  if (saveTimeoutRef.current) {
-                    clearTimeout(saveTimeoutRef.current);
-                  }
-                  handleSave({ guides });
-                }}
-                className="bg-teal-600 hover:bg-teal-700"
-              >
-                <Save className="h-4 w-4 mr-2" />
-                Save
-              </Button>
-              <Button
-                onClick={handlePreview}
-                disabled={!selectedTestRecord || isPreviewing || !template.airtable_connection_id}
-                className="bg-teal-600 hover:bg-teal-700"
-              >
-                {isPreviewing ? (
-                  'Generating...'
-                ) : (
-                  <>
-                    <Eye className="h-4 w-4 mr-2" />
-                    Preview in New Tab
-                  </>
-                )}
-              </Button>
-            </div>
-          </div>
-        </div>
-
-        <div className="flex flex-1 overflow-hidden">
-          {/* PDF Viewer */}
-          <div className="flex-1">
-            {!template.pdf_url ? (
-              <div className="flex items-center justify-center h-full bg-slate-100 text-slate-500">
-                <div className="text-center">
-                  <p className="mb-4">No PDF uploaded for this template.</p>
-                  <Button onClick={() => navigate(createPageUrl('Templates'))}>
-                    Go back to upload
-                  </Button>
-                </div>
-              </div>
-            ) : (
-              <PDFViewer
-                pdfUrl={template.pdf_url}
-                fields={template.fields || []}
-                onFieldUpdate={handleUpdateField}
-                onFieldDelete={handleDeleteField}
-                onFieldAdd={handleAddField}
-                onBulkFieldAdd={handleBulkFieldAdd}
-                onFieldSelect={(fieldId) => {
-                  const field = template.fields?.find(f => f.id === fieldId);
-                  setSelectedField(field);
-                }}
-                selectedFieldId={selectedField?.id}
-                defaultFont={template.default_font}
-                defaultFontSize={template.default_font_size}
-                defaultAlignment={template.default_alignment}
-                defaultBold={template.default_bold}
-                defaultItalic={template.default_italic}
-                defaultUnderline={template.default_underline}
-                guides={guides}
-                onGuidesChange={setGuides}
-                template={template}
-                queryClient={queryClient}
-                templateId={templateId}
-                updateMutation={updateMutation}
-                airtableFields={airtableFields}
-              />
-            )}
-          </div>
-
-          {/* Properties Panel */}
-          <div className="w-80 bg-white dark:bg-slate-800 border-l border-slate-200 dark:border-slate-700 shadow-lg">
-            <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-700 bg-gradient-to-r from-slate-50 to-white dark:from-slate-800 dark:to-slate-800">
-              <h2 className="font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2">
-                <div className="w-2 h-2 rounded-full bg-teal-500"></div>
-                Properties
-              </h2>
-            </div>
-            <FieldPropertiesPanel
-              field={selectedField}
-              onUpdate={handleUpdateField}
-              airtableFields={airtableFields}
-            />
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-900">
-      <div className="max-w-7xl mx-auto p-6 space-y-6">
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => navigate(createPageUrl('Templates'))}
-            >
-              <ArrowLeft className="h-5 w-5" />
-            </Button>
-            <div>
-              <h1 className="text-3xl font-bold text-slate-900 dark:text-slate-100">
-                {template.name}
-              </h1>
-              <p className="text-slate-600 dark:text-slate-400 mt-1">
-                Configure template settings and field mappings
-              </p>
-            </div>
-          </div>
-          <div className="flex gap-2">
-            <Button
-              onClick={handleDetectFields}
-              disabled={isDetecting}
-              variant="outline"
-            >
-              <Sparkles className="h-4 w-4 mr-2" />
-              {isDetecting ? 'Detecting...' : 'AI Detect Fields'}
-            </Button>
-            <Button
-              onClick={() => setMode('editor')}
-              variant="outline"
-            >
-              <Eye className="h-4 w-4 mr-2" />
-              Visual Editor
-            </Button>
-            <Button
-              onClick={() => setMode('editor')}
-              className="bg-teal-600 hover:bg-teal-700"
-            >
-              Done Config
-            </Button>
-          </div>
-        </div>
-
-        <Tabs defaultValue="settings" className="space-y-6">
-          <TabsList>
-            <TabsTrigger value="settings">Template Settings</TabsTrigger>
-            <TabsTrigger value="fields">Field Mappings ({template.fields?.length || 0})</TabsTrigger>
-            <TabsTrigger value="styling">Default Styling</TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="settings">
-            <Card className="bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700">
-              <CardHeader>
-                <CardTitle className="text-slate-900 dark:text-slate-100">
-                  Airtable Configuration
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div>
-                  <Label>Airtable Connection</Label>
-                  <SearchableSelect
-                    value={template.airtable_connection_id || ''}
-                    onChange={(value) => handleSave({ airtable_connection_id: value })}
-                    options={connections.map(c => ({ value: c.id, label: c.name }))}
-                    placeholder="Select connection"
-                  />
-                </div>
-
-                <div>
-                  <Label>Base</Label>
-                  <SearchableSelect
-                    value={template.airtable_base_id || ''}
-                    onChange={(value) => handleSave({ airtable_base_id: value, airtable_table_name: '' })}
-                    options={availableBases.map(b => ({ value: b.id, label: b.name }))}
-                    placeholder="Select base"
-                    disabled={!template.airtable_connection_id}
-                    loading={loadingBases}
-                  />
-                </div>
-
-                <div>
-                  <Label>Table</Label>
-                  <SearchableSelect
-                    value={template.airtable_table_name || ''}
-                    onChange={(value) => handleSave({ airtable_table_name: value })}
-                    options={availableTables.map(t => ({ value: t.name, label: t.name }))}
-                    placeholder="Select table"
-                    disabled={!template.airtable_base_id}
-                  />
-                </div>
-
-                <div>
-                  <Label>Test Record (for preview)</Label>
-                  <SearchableSelect
-                    value={selectedTestRecord || ''}
-                    onChange={setSelectedTestRecord}
-                    options={testRecords.map(r => ({
-                      value: r.id,
-                      label: r.fields['Application number'] || r.fields.Name || r.fields.Title || r.id.substring(0, 8)
-                    }))}
-                    placeholder="Select test record"
-                    disabled={!template.airtable_table_name}
-                  />
-                </div>
-
-                <div>
-                  <Label>Trigger Field (field to watch)</Label>
-                  <Input
-                    value={template.trigger_field || ''}
-                    onChange={(e) => handleSave({ trigger_field: e.target.value })}
-                    placeholder="Status"
-                  />
-                </div>
-
-                <div>
-                  <Label>Trigger Value (value that triggers generation)</Label>
-                  <Input
-                    value={template.trigger_value || ''}
-                    onChange={(e) => handleSave({ trigger_value: e.target.value })}
-                    placeholder="Generate PDF"
-                  />
-                </div>
-
-                <div>
-                  <Label>Output Field (where to upload PDF)</Label>
-                  <Input
-                    value={template.output_field || ''}
-                    onChange={(e) => handleSave({ output_field: e.target.value })}
-                    placeholder="PDF Attachment"
-                  />
-                </div>
-
-                <div className="flex items-center space-x-2 pt-4 border-t border-slate-200 dark:border-slate-700">
-                  <Checkbox
-                    id="setup-polling"
-                    checked={setupPollingNow}
-                    onCheckedChange={setSetupPollingNow}
-                  />
-                  <Label htmlFor="setup-polling" className="cursor-pointer">
-                    Enable automatic polling when I activate this template
-                  </Label>
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="fields">
-            <FieldConfiguration
-              fields={template.fields || []}
-              airtableFields={airtableFields}
-              onUpdateField={handleUpdateField}
-              onDeleteField={handleDeleteField}
-              selectedField={selectedField}
-              onSelectField={setSelectedField}
-            />
-          </TabsContent>
-
-          <TabsContent value="styling">
-            <DefaultStyleSettings
-              template={template}
-              onSave={handleSave}
-            />
-          </TabsContent>
-        </Tabs>
-      </div>
-    </div>
+    <EditorLayout
+      templateName={template.name}
+      activeTab={mode === 'config' ? 'settings' : 'design'} // Mapping legacy mode to new tab names
+      onTabChange={(tab) => setMode(tab === 'settings' ? 'config' : 'editor')}
+      onSave={() => handleSave({ guides })}
+      onPreview={handlePreview}
+      isPreviewing={isPreviewing}
+      canPreview={!!(selectedTestRecord && template.airtable_connection_id)}
+      isSaving={updateMutation.isLoading}
+    >
+      {mode === 'config' ? (
+        <SettingsView
+          template={template}
+          connections={connections}
+          availableBases={availableBases}
+          availableTables={availableTables}
+          testRecords={testRecords}
+          selectedTestRecord={selectedTestRecord}
+          setSelectedTestRecord={setSelectedTestRecord}
+          loadingBases={loadingBases}
+          onSave={handleSave}
+          onDetectFields={handleDetectFields}
+          isDetecting={isDetecting}
+          setupPollingNow={setupPollingNow}
+          setSetupPollingNow={setSetupPollingNow}
+        />
+      ) : (
+        <DesignView
+          template={template}
+          onUpdateField={handleUpdateField}
+          onDeleteField={handleDeleteField}
+          handleAddField={handleAddField}
+          handleBulkFieldAdd={handleBulkFieldAdd}
+          setSelectedField={setSelectedField}
+          selectedField={selectedField}
+          guides={guides}
+          setGuides={setGuides}
+          queryClient={queryClient}
+          templateId={templateId}
+          updateMutation={updateMutation}
+          airtableFields={airtableFields}
+        />
+      )}
+    </EditorLayout>
   );
 }
