@@ -344,6 +344,8 @@ export default function TemplateEditor() {
     updateCache(updates);
   }, [updateCache]);
 
+  const [settingsOpen, setSettingsOpen] = useState(false);
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-slate-50 dark:bg-slate-900 flex items-center justify-center">
@@ -363,46 +365,43 @@ export default function TemplateEditor() {
   return (
     <EditorLayout
       templateName={template.name}
-      activeTab={mode === 'config' ? 'settings' : 'design'}
-      onTabChange={(tab) => setMode(tab === 'settings' ? 'config' : 'editor')}
       onSave={handleManualSave}
       onPreview={handlePreview}
       isPreviewing={isPreviewing}
       canPreview={!!(selectedTestRecord && template.airtable_connection_id)}
       isSaving={isSyncing}
+      onSettingsToggle={() => setSettingsOpen(!settingsOpen)}
+      settingsOpen={settingsOpen}
     >
-      {mode === 'config' ? (
-        <SettingsView
-          template={template}
-          connections={connections}
-          availableBases={availableBases}
-          availableTables={availableTables}
-          testRecords={testRecords}
-          selectedTestRecord={selectedTestRecord}
-          setSelectedTestRecord={setSelectedTestRecord}
-          loadingBases={loadingBases}
-          onSave={handleSettingsSave}
-          onDetectFields={handleDetectFields}
-          isDetecting={isDetecting}
-          setupPollingNow={setupPollingNow}
-          setSetupPollingNow={setSetupPollingNow}
-        />
-      ) : (
-        <DesignView
-          template={template}
-          onUpdateField={handleUpdateField}
-          onDeleteField={handleDeleteField}
-          handleAddField={handleAddField}
-          handleBulkFieldAdd={handleBulkFieldAdd}
-          setSelectedField={setSelectedField}
-          selectedField={selectedField}
-          guides={guides}
-          setGuides={setGuides}
-          queryClient={queryClient}
-          templateId={templateId}
-          airtableFields={airtableFields}
-        />
-      )}
+      <DesignView
+        template={template}
+        onUpdateField={handleUpdateField}
+        onDeleteField={handleDeleteField}
+        handleAddField={handleAddField}
+        handleBulkFieldAdd={handleBulkFieldAdd}
+        setSelectedField={setSelectedField}
+        selectedField={selectedField}
+        guides={guides}
+        setGuides={setGuides}
+        queryClient={queryClient}
+        templateId={templateId}
+        airtableFields={airtableFields}
+        // Settings props
+        settingsOpen={settingsOpen}
+        connections={connections}
+        availableBases={availableBases}
+        availableTables={availableTables}
+        testRecords={testRecords}
+        selectedTestRecord={selectedTestRecord}
+        setSelectedTestRecord={setSelectedTestRecord}
+        loadingBases={loadingBases}
+        onSettingsSave={handleSettingsSave}
+        onDetectFields={handleDetectFields}
+        isDetecting={isDetecting}
+        setupPollingNow={setupPollingNow}
+        setSetupPollingNow={setSetupPollingNow}
+      />
     </EditorLayout>
   );
 }
+
