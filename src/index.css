@@ -8,6 +8,11 @@
     @apply scroll-smooth;
   }
 
+  /* Remove all focus outlines globally */
+  *:focus {
+    outline: none !important;
+  }
+
   body {
     margin: 0;
     background-color: #f1f5f9;
@@ -21,6 +26,13 @@
 
   #root {
     min-height: 100vh;
+  }
+
+  /* Auto fade-in for main content areas */
+  main,
+  .page-content,
+  [data-animate="true"] {
+    animation: fadeIn 0.4s ease-out;
   }
 }
 
