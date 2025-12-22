@@ -18,7 +18,7 @@ import {
 import { createPageUrl } from '@/utils';
 import { ThemeProvider } from './components/theme/ThemeProvider';
 import ThemeToggle from './components/common/ThemeToggle';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { db } from './components/services/database';
 import { Toaster, toast } from 'sonner';
 import { OrgProvider, useOrgContext } from './components/context/OrgContext';
@@ -198,10 +198,12 @@ const PollingIndicator = () => {
 
 const UserMenu = () => {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const user = base44.auth.getUser();
 
   const handleLogout = async () => {
     await base44.auth.logout();
+    queryClient.clear();
     toast.success('Logged out successfully');
     navigate('/login');
   };

@@ -33,7 +33,7 @@ export default function TemplateCard({
 
   return (
     <Card
-      className="group hover:shadow-lg transition-all cursor-pointer bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 hover:border-teal-300 flex flex-col overflow-hidden"
+      className="group hover:shadow-lg transition-all cursor-pointer bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 hover:border-teal-300 flex flex-col"
       onClick={() => onEdit(template, true)}
     >
       {/* Thumbnail Preview */}
