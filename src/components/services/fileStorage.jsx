@@ -12,12 +12,25 @@ export const fileStorage = {
     const formData = new FormData();
     formData.append("file", file);
 
+    const token = localStorage.getItem('auth_token');
+    const headers = {};
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
     const res = await fetch("/api/upload", {
       method: "POST",
+      headers,
       body: formData,
     });
 
     if (!res.ok) {
+      if (res.status === 401) {
+        localStorage.removeItem('auth_token');
+        localStorage.removeItem('auth_user');
+        window.location.href = '/login';
+        throw new Error('Session expired');
+      }
       const text = await res.text();
       throw new Error(text || "Upload failed");
     }
