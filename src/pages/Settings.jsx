@@ -58,7 +58,7 @@ export default function Settings() {
   });
 
   const [intervalMinutes, setIntervalMinutes] = useState(pollingConfig?.interval_minutes || 5);
-  
+
   const [defaultContext, setDefaultContext] = useState(
     localStorage.getItem('defaultContext') || 'personal'
   );
@@ -86,19 +86,19 @@ export default function Settings() {
   const handleKeyDown = (e, action) => {
     if (!recordingKey) return;
     e.preventDefault();
-    
+
     const key = e.key.toUpperCase();
     if (key === 'ESCAPE') {
       setRecordingKey(false);
       setEditingShortcut(null);
       return;
     }
-    
+
     const modifiers = [];
     if (e.ctrlKey || e.metaKey) modifiers.push('Ctrl');
     if (e.shiftKey) modifiers.push('Shift');
     if (e.altKey) modifiers.push('Alt');
-    
+
     const shortcutKey = [...modifiers, key].join('+');
     const newShortcuts = { ...shortcuts, [action]: shortcutKey };
     saveShortcuts(newShortcuts);
@@ -374,24 +374,38 @@ export default function Settings() {
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
-                        {editingShortcut === action && recordingKey ? (
-                          <div
-                            className="px-3 py-1.5 bg-teal-100 dark:bg-teal-900/30 text-teal-900 dark:text-teal-100 rounded font-mono text-sm animate-pulse"
-                            onKeyDown={(e) => handleKeyDown(e, action)}
-                            tabIndex={0}
+                        {editingShortcut === action ? (
+                          <Input
+                            className="w-28 h-8 text-center font-mono text-sm"
+                            placeholder="e.g. Ctrl+S"
+                            defaultValue={shortcuts[action]}
                             autoFocus
-                          >
-                            Press key...
-                          </div>
+                            onBlur={(e) => {
+                              const value = e.target.value.trim();
+                              if (value !== shortcuts[action]) {
+                                const newShortcuts = { ...shortcuts, [action]: value };
+                                saveShortcuts(newShortcuts);
+                              }
+                              setEditingShortcut(null);
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                e.target.blur();
+                              }
+                              if (e.key === 'Escape') {
+                                setEditingShortcut(null);
+                              }
+                            }}
+                          />
                         ) : (
                           <button
-                            onClick={() => handleShortcutRecord(action)}
+                            onClick={() => setEditingShortcut(action)}
                             className="px-3 py-1.5 bg-slate-100 dark:bg-slate-700 text-slate-900 dark:text-slate-100 rounded font-mono text-sm hover:bg-slate-200 dark:hover:bg-slate-600 min-w-[80px] text-center"
                           >
                             {shortcuts[action] || 'None'}
                           </button>
                         )}
-                        {shortcuts[action] && (
+                        {shortcuts[action] && editingShortcut !== action && (
                           <Button
                             size="sm"
                             variant="ghost"
@@ -407,6 +421,7 @@ export default function Settings() {
                 </div>
               </div>
             ))}
+
             <div className="pt-4 border-t border-slate-200 dark:border-slate-700">
               <Button
                 onClick={resetToDefaults}

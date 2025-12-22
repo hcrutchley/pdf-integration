@@ -163,6 +163,42 @@ export default function PDFViewer({
     return () => window.removeEventListener('resize', updateSize);
   }, []);
 
+  // Zoom levels for snapping: 25% to 300%
+  const ZOOM_LEVELS = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 2, 2.5, 3];
+  const MIN_ZOOM = 0.25;
+  const MAX_ZOOM = 3;
+
+  // Ctrl+Mousewheel zoom handler
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const handleWheel = (e) => {
+      if (e.ctrlKey || e.metaKey) {
+        e.preventDefault();
+
+        // Determine zoom direction
+        const delta = e.deltaY < 0 ? 0.1 : -0.1;
+
+        setScale(prev => {
+          const newScale = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, prev + delta));
+
+          // Snap to nearest level if close
+          for (const level of ZOOM_LEVELS) {
+            if (Math.abs(newScale - level) < 0.05) {
+              return level;
+            }
+          }
+          return newScale;
+        });
+      }
+    };
+
+    container.addEventListener('wheel', handleWheel, { passive: false });
+    return () => container.removeEventListener('wheel', handleWheel);
+  }, []);
+
+
   const snapToGuides = useCallback((value, isVertical) => {
     if (!guidesVisible) return { snapped: value, didSnap: false };
     const guideSet = isVertical ? localGuides.vertical : localGuides.horizontal;
