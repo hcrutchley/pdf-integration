@@ -1,5 +1,5 @@
 import React from 'react';
-import { FileText, Edit2, Trash2, Play, Pause, MoreVertical } from 'lucide-react';
+import { FileText, Edit2, Trash2, Play, Pause, MoreVertical, FolderInput } from 'lucide-react';
 import { Card, CardContent, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -8,10 +8,21 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
+  DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu';
 import { format } from 'date-fns';
 
-export default function TemplateCard({ template, onEdit, onDelete, onToggleStatus }) {
+export default function TemplateCard({
+  template,
+  onEdit,
+  onDelete,
+  onToggleStatus,
+  onMoveToFolder,
+  sections = []
+}) {
   const statusColors = {
     draft: 'bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-300',
     active: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
@@ -19,7 +30,7 @@ export default function TemplateCard({ template, onEdit, onDelete, onToggleStatu
   };
 
   return (
-    <Card 
+    <Card
       className="group hover:shadow-lg transition-all cursor-pointer bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 hover:border-teal-300"
       onClick={() => onEdit(template, true)}
     >
@@ -43,9 +54,9 @@ export default function TemplateCard({ template, onEdit, onDelete, onToggleStatu
           </div>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button 
-                variant="ghost" 
-                size="icon" 
+              <Button
+                variant="ghost"
+                size="icon"
                 className="opacity-0 group-hover:opacity-100"
                 onClick={(e) => e.stopPropagation()}
               >
@@ -61,6 +72,40 @@ export default function TemplateCard({ template, onEdit, onDelete, onToggleStatu
                 <Edit2 className="h-4 w-4 mr-2" />
                 Settings
               </DropdownMenuItem>
+
+              {onMoveToFolder && sections.length > 0 && (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuSub>
+                    <DropdownMenuSubTrigger onClick={(e) => e.stopPropagation()}>
+                      <FolderInput className="h-4 w-4 mr-2" />
+                      Move to Folder
+                    </DropdownMenuSubTrigger>
+                    <DropdownMenuSubContent>
+                      <DropdownMenuItem
+                        onClick={(e) => { e.stopPropagation(); onMoveToFolder(template, null); }}
+                        disabled={!template.section_id}
+                      >
+                        <span className="text-slate-500">No folder</span>
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      {sections.map(section => (
+                        <DropdownMenuItem
+                          key={section.id}
+                          onClick={(e) => { e.stopPropagation(); onMoveToFolder(template, section.id); }}
+                          disabled={template.section_id === section.id}
+                        >
+                          <span style={{ paddingLeft: `${(section.level || 0) * 12}px` }}>
+                            {section.name}
+                          </span>
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuSubContent>
+                  </DropdownMenuSub>
+                </>
+              )}
+
+              <DropdownMenuSeparator />
               <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onToggleStatus(template); }}>
                 {template.status === 'active' ? (
                   <>

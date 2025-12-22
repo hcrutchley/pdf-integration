@@ -1,4 +1,5 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
+
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Plus, Upload, Search, Download } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -54,6 +55,21 @@ export default function Templates() {
     (contextFilter.organization_id === null && !s.organization_id) ||
     (s.organization_id === contextFilter.organization_id)
   );
+
+  // Build flat section list with levels for move menu
+  const flatSections = useMemo(() => {
+    const buildTree = (parentId = null, level = 0) => {
+      return sections
+        .filter(s => (s.parent_id || null) === parentId)
+        .sort((a, b) => (a.order || 0) - (b.order || 0))
+        .flatMap(section => [
+          { ...section, level },
+          ...buildTree(section.id, level + 1)
+        ]);
+    };
+    return buildTree();
+  }, [sections]);
+
 
   const createTemplateMutation = useMutation({
     mutationFn: (data) => db.templates.create(data),
@@ -156,6 +172,16 @@ export default function Templates() {
       deleteTemplateMutation.mutate(template.id);
     }
   };
+
+  // Handle moving template to a different folder
+  const handleMoveToFolder = useCallback((template, sectionId) => {
+    updateTemplateMutation.mutate({
+      id: template.id,
+      data: { section_id: sectionId }
+    });
+    toast.success(sectionId ? 'Template moved to folder' : 'Template removed from folder');
+  }, [updateTemplateMutation]);
+
 
   // Handle import from .airpdf file
   const handleImportComplete = useCallback(async ({ data, connectionId, mode }) => {
@@ -293,14 +319,17 @@ export default function Templates() {
                   <TemplateCard
                     key={template.id}
                     template={template}
+                    sections={flatSections}
                     onEdit={(t, openEditor) => {
                       const url = createPageUrl('TemplateEditor') + `?id=${t.id}`;
                       navigate(openEditor ? url + '&mode=editor' : url);
                     }}
                     onDelete={handleDelete}
                     onToggleStatus={handleToggleStatus}
+                    onMoveToFolder={handleMoveToFolder}
                   />
                 ))}
+
               </div>
             )}
           </div>
