@@ -96,12 +96,43 @@ async function handleList(env, entityName, url, currentUser) {
   const limit = parseInt(url.searchParams.get("limit") || "100", 10);
   const whereStr = url.searchParams.get("where");
 
-  // RLS: Only select items where json_extract(data, '$.user_id') = currentUser.id
-  const { results } = await env.DB.prepare(
-    "SELECT id, entity_name, data, created_date, updated_date FROM entities WHERE entity_name = ? AND json_extract(data, '$.user_id') = ?"
-  )
-    .bind(entityName, currentUser.id)
+  // First, get all organizations the user belongs to (as owner or member)
+  const { results: userOrgs } = await env.DB.prepare(`
+    SELECT id FROM entities 
+    WHERE entity_name = 'Organization' 
+    AND (
+      json_extract(data, '$.owner_email') = ?
+      OR json_extract(data, '$.member_emails') LIKE ?
+    )
+  `)
+    .bind(currentUser.email, `%${currentUser.email}%`)
     .all();
+
+  const orgIds = userOrgs.map(o => o.id);
+
+  // RLS: Select items where:
+  // 1. user_id = currentUser.id (personal items), OR
+  // 2. organization_id is in the user's org list
+  let query = `
+    SELECT id, entity_name, data, created_date, updated_date 
+    FROM entities 
+    WHERE entity_name = ? 
+    AND (
+      json_extract(data, '$.user_id') = ?
+  `;
+
+  const bindings = [entityName, currentUser.id];
+
+  if (orgIds.length > 0) {
+    // Add organization access clause
+    const placeholders = orgIds.map(() => '?').join(', ');
+    query += ` OR json_extract(data, '$.organization_id') IN (${placeholders})`;
+    bindings.push(...orgIds);
+  }
+
+  query += ')';
+
+  const { results } = await env.DB.prepare(query).bind(...bindings).all();
 
   let items = results.map((row) => {
     const data = JSON.parse(row.data);
@@ -184,12 +215,40 @@ async function handleBulkCreate(env, entityName, items, currentUser) {
 }
 
 async function handleGet(env, entityName, id, currentUser) {
-  // RLS: Add AND user_id check
-  const { results } = await env.DB.prepare(
-    "SELECT id, data, created_date, updated_date FROM entities WHERE id = ? AND entity_name = ? AND json_extract(data, '$.user_id') = ?"
-  )
-    .bind(id, entityName, currentUser.id)
+  // First get the user's organization IDs
+  const { results: userOrgs } = await env.DB.prepare(`
+    SELECT id FROM entities 
+    WHERE entity_name = 'Organization' 
+    AND (
+      json_extract(data, '$.owner_email') = ?
+      OR json_extract(data, '$.member_emails') LIKE ?
+    )
+  `)
+    .bind(currentUser.email, `%${currentUser.email}%`)
     .all();
+
+  const orgIds = userOrgs.map(o => o.id);
+
+  // Build query with org access
+  let query = `
+    SELECT id, data, created_date, updated_date 
+    FROM entities 
+    WHERE id = ? AND entity_name = ? 
+    AND (
+      json_extract(data, '$.user_id') = ?
+  `;
+
+  const bindings = [id, entityName, currentUser.id];
+
+  if (orgIds.length > 0) {
+    const placeholders = orgIds.map(() => '?').join(', ');
+    query += ` OR json_extract(data, '$.organization_id') IN (${placeholders})`;
+    bindings.push(...orgIds);
+  }
+
+  query += ')';
+
+  const { results } = await env.DB.prepare(query).bind(...bindings).all();
 
   if (!results.length) {
     return new Response("Not found", { status: 404 });
@@ -208,12 +267,39 @@ async function handleGet(env, entityName, id, currentUser) {
 async function handleUpdate(env, entityName, id, data, currentUser) {
   const now = new Date().toISOString();
 
-  // RLS: Fetch existing data ensuring checking ownership first
-  const { results } = await env.DB.prepare(
-    "SELECT data FROM entities WHERE id = ? AND entity_name = ? AND json_extract(data, '$.user_id') = ?"
-  )
-    .bind(id, entityName, currentUser.id)
+  // First get the user's organization IDs
+  const { results: userOrgs } = await env.DB.prepare(`
+    SELECT id FROM entities 
+    WHERE entity_name = 'Organization' 
+    AND (
+      json_extract(data, '$.owner_email') = ?
+      OR json_extract(data, '$.member_emails') LIKE ?
+    )
+  `)
+    .bind(currentUser.email, `%${currentUser.email}%`)
     .all();
+
+  const orgIds = userOrgs.map(o => o.id);
+
+  // Build query with org access
+  let query = `
+    SELECT data FROM entities 
+    WHERE id = ? AND entity_name = ? 
+    AND (
+      json_extract(data, '$.user_id') = ?
+  `;
+
+  const bindings = [id, entityName, currentUser.id];
+
+  if (orgIds.length > 0) {
+    const placeholders = orgIds.map(() => '?').join(', ');
+    query += ` OR json_extract(data, '$.organization_id') IN (${placeholders})`;
+    bindings.push(...orgIds);
+  }
+
+  query += ')';
+
+  const { results } = await env.DB.prepare(query).bind(...bindings).all();
 
   if (results.length === 0) {
     return new Response("Not found or access denied", { status: 404 });
@@ -229,8 +315,13 @@ async function handleUpdate(env, entityName, id, data, currentUser) {
       data.apiKey = existingData.apiKey;
     }
 
-    // Merge updates, but FORCE user_id to remain unchanged/correct
-    mergedData = { ...existingData, ...data, user_id: currentUser.id };
+    // Merge updates, keep original user_id and organization_id
+    mergedData = {
+      ...existingData,
+      ...data,
+      user_id: existingData.user_id,
+      organization_id: existingData.organization_id
+    };
   } catch (e) {
     console.error("Failed to parse existing data:", e);
     // Fallback: If corrupted, replace but ensure user_id is set
@@ -247,18 +338,40 @@ async function handleUpdate(env, entityName, id, data, currentUser) {
 }
 
 async function handleDelete(env, entityName, id, currentUser) {
-  // RLS: Allow delete only if user owns it
-  // We can just rely on the WHERE clause, if it doesn't match, nothing is deleted (idempotent success or 404?)
-  // For strictness, let's verify existence first or check deleted rows count (D1 wrapper details differ).
-  // Standard simple approach: Just run delete with extra WHERE.
+  // First get the user's organization IDs
+  const { results: userOrgs } = await env.DB.prepare(`
+    SELECT id FROM entities 
+    WHERE entity_name = 'Organization' 
+    AND (
+      json_extract(data, '$.owner_email') = ?
+      OR json_extract(data, '$.member_emails') LIKE ?
+    )
+  `)
+    .bind(currentUser.email, `%${currentUser.email}%`)
+    .all();
 
-  const { meta } = await env.DB.prepare(
-    "DELETE FROM entities WHERE id = ? AND entity_name = ? AND json_extract(data, '$.user_id') = ?"
-  )
-    .bind(id, entityName, currentUser.id)
-    .run();
+  const orgIds = userOrgs.map(o => o.id);
 
-  // meta.changes might indicate if something was deleted, but 204 is fine regardless
+  // Build delete query with org access
+  let query = `
+    DELETE FROM entities 
+    WHERE id = ? AND entity_name = ? 
+    AND (
+      json_extract(data, '$.user_id') = ?
+  `;
+
+  const bindings = [id, entityName, currentUser.id];
+
+  if (orgIds.length > 0) {
+    const placeholders = orgIds.map(() => '?').join(', ');
+    query += ` OR json_extract(data, '$.organization_id') IN (${placeholders})`;
+    bindings.push(...orgIds);
+  }
+
+  query += ')';
+
+  await env.DB.prepare(query).bind(...bindings).run();
+
   return new Response(null, { status: 204 });
 }
 

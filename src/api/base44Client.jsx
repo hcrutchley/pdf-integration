@@ -23,10 +23,13 @@ export const base44 = {
       localStorage.setItem(USER_KEY, JSON.stringify(user));
     },
 
-    // Clear auth data
+    // Clear auth data and all user-specific preferences
     clearAuth() {
       localStorage.removeItem(TOKEN_KEY);
       localStorage.removeItem(USER_KEY);
+      // Clear org context to prevent data leakage between accounts
+      localStorage.removeItem('defaultContext');
+      localStorage.removeItem('defaultOrgId');
     },
 
     // Check if user is authenticated

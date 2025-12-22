@@ -280,7 +280,7 @@ export default function SectionManager({
                             onClick={() => onSelectSection(section)}
                             className="flex-1 flex items-center gap-2 text-left min-w-0"
                           >
-                            <div className="flex-1 flex items-center gap-2 min-w-0 overflow-hidden">
+                            <div className="flex-1 flex items-center gap-2 min-w-0">
                               <Folder className="h-4 w-4 flex-shrink-0 text-slate-400 dark:text-slate-500" />
                               <span className="truncate font-medium text-slate-700 dark:text-slate-200" title={section.name}>
                                 {section.name}
