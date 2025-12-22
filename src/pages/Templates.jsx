@@ -13,6 +13,7 @@ import { useNavigate } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import { useOrgContext } from '../components/context/OrgContext';
 import { toast } from 'sonner';
+import { exportBatch } from '../components/services/exportService';
 
 // Helper to convert base64 to blob
 function base64ToBlob(base64, mimeType) {
@@ -182,6 +183,24 @@ export default function Templates() {
     toast.success(sectionId ? 'Template moved to folder' : 'Template removed from folder');
   }, [updateTemplateMutation]);
 
+  // Handle batch export of a section
+  const handleExportSection = useCallback(async (section) => {
+    const toastId = toast.loading('Creating export bundle...');
+    try {
+      await exportBatch(
+        section,
+        allSections,
+        allTemplates,
+        async (template) => template.pdf_url
+      );
+      toast.success('Check your downloads folder', { id: toastId });
+    } catch (error) {
+      console.error(error);
+      toast.error('Export failed: ' + error.message, { id: toastId });
+    }
+  }, [allSections, allTemplates]);
+
+
 
   // Handle import from .airpdf file
   const handleImportComplete = useCallback(async ({ data, connectionId, mode }) => {
@@ -216,11 +235,104 @@ export default function Templates() {
 
         await createTemplateMutation.mutateAsync(newTemplate);
         toast.success('Template imported successfully');
+      } else if (mode === 'batch') {
+        const toastId = toast.loading(`Importing ${data.items.length} items...`);
+        let successCount = 0;
+        const sectionPathCache = new Map();
+
+        // Helper to find or create sections
+        const getOrCreateSection = async (pathArr) => {
+          if (!pathArr || pathArr.length === 0) return selectedSection?.id || null;
+
+          let parentId = selectedSection?.id || null;
+          let currentPath = '';
+
+          for (const folderName of pathArr) {
+            currentPath = currentPath ? `${currentPath}/${folderName}` : folderName;
+
+            if (sectionPathCache.has(currentPath)) {
+              parentId = sectionPathCache.get(currentPath);
+              continue;
+            }
+
+            // Check existing sections (closest match in current list)
+            // Note: This won't find sections created in this loop until invalidation, 
+            // but we use the cache for that.
+            const existing = allSections.find(s =>
+              s.name === folderName &&
+              (s.parent_id || null) === (parentId || null) &&
+              ((contextFilter.organization_id === null && !s.organization_id) || (s.organization_id === contextFilter.organization_id))
+            );
+
+            if (existing) {
+              parentId = existing.id;
+            } else {
+              // Create new section
+              const newSection = await createSectionMutation.mutateAsync({
+                name: folderName,
+                parent_id: parentId,
+                organization_id: contextFilter.organization_id
+              });
+              parentId = newSection.id;
+            }
+            sectionPathCache.set(currentPath, parentId);
+          }
+          return parentId;
+        };
+
+        for (const item of data.items) {
+          try {
+            const targetSectionId = await getOrCreateSection(item.path);
+
+            if (item.type === 'airpdf') {
+              // Import airpdf
+              // Decode and upload PDF
+              const pdfBlob = base64ToBlob(item.data.pdf, 'application/pdf');
+              const pdfUrl = await fileStorage.uploadFile(pdfBlob, `${item.data.template.name}.pdf`);
+
+              const newTemplate = {
+                ...item.data.template,
+                pdf_url: pdfUrl,
+                airtable_connection_id: connectionId,
+                section_id: targetSectionId,
+                status: 'draft',
+                organization_id: contextFilter.organization_id
+              };
+              await createTemplateMutation.mutateAsync(newTemplate);
+              successCount++;
+            } else if (item.type === 'pdf') {
+              // Import raw PDF
+              const pdfBlob = base64ToBlob(item.data.base64, 'application/pdf');
+              const pdfUrl = await fileStorage.uploadFile(pdfBlob, `${item.data.name}.pdf`);
+
+              await createTemplateMutation.mutateAsync({
+                name: item.data.name,
+                pdf_url: pdfUrl,
+                fields: [],
+                guides: { vertical: [], horizontal: [] },
+                airtable_connection_id: connectionId,
+                section_id: targetSectionId,
+                status: 'draft',
+                organization_id: contextFilter.organization_id
+              });
+              successCount++;
+            }
+          } catch (err) {
+            console.error(`Failed to import item ${item.name}:`, err);
+          }
+        }
+
+        // Invalidate sections and templates to refresh UI
+        queryClient.invalidateQueries(['sections']);
+        queryClient.invalidateQueries(['templates']);
+        toast.success(`Imported ${successCount} templates`, { id: toastId });
+
       } else if (mode === 'fields_only') {
         // For fields only, we'd need to select a target template first
         // For now, just show a message
         toast.info('Fields-only import requires selecting a target template (coming soon)');
       }
+
     } catch (error) {
       console.error('Import failed:', error);
       throw error;
@@ -247,6 +359,7 @@ export default function Templates() {
             onCreateSection={(data) => createSectionMutation.mutate(data)}
             onUpdateSection={(id, data) => updateSectionMutation.mutate({ id, data })}
             onDeleteSection={(id) => deleteSectionMutation.mutate(id)}
+            onExportSection={handleExportSection}
           />
         </div>
 

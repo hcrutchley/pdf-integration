@@ -3,6 +3,8 @@ import { Plus, Trash2, Hand, Grid, Maximize2, MoveVertical, MoveHorizontal, Alig
 import { Button } from '@/components/ui/button';
 import PDFCanvas from './PDFCanvas';
 import ContextMenu from './ContextMenu';
+import ZoomSlider from './ZoomSlider';
+
 
 const getFieldIcon = (type) => {
   const iconMap = {
@@ -576,20 +578,45 @@ export default function PDFViewer({
           });
         } else {
           // Single guide drag
-          const rect = pdfContainerRef.current.getBoundingClientRect();
-          const pos = draggingGuide.type === 'vertical'
-            ? (e.clientX - rect.left) / scale
-            : (e.clientY - rect.top) / scale;
+          const isPrecisionKey = e.getModifierState && e.getModifierState('CapsLock');
 
-          setLocalGuides(prev => {
-            const newGuides = { ...prev };
-            if (draggingGuide.type === 'vertical') {
-              newGuides.vertical[draggingGuide.index] = Math.max(0, Math.min(612, pos));
-            } else {
-              newGuides.horizontal[draggingGuide.index] = Math.max(0, Math.min(792, pos));
-            }
-            return newGuides;
-          });
+          if (isPrecisionKey) {
+            const speedMultiplier = 0.1;
+            const deltaX = ((e.clientX - draggingGuide.startX) / scale) * speedMultiplier;
+            const deltaY = ((e.clientY - draggingGuide.startY) / scale) * speedMultiplier;
+
+            setLocalGuides(prev => {
+              const newGuides = { ...prev };
+              // Fetch initial position from cache
+              const initialKey = `${draggingGuide.type}-${draggingGuide.index}`;
+              // Fallback to current guide position if cache missed (shouldn't happen given onMouseDown logic)
+              const initial = initialGuidePositions.current[initialKey] ??
+                (draggingGuide.type === 'vertical' ? prev.vertical[draggingGuide.index] : prev.horizontal[draggingGuide.index]);
+
+              if (draggingGuide.type === 'vertical') {
+                newGuides.vertical[draggingGuide.index] = Math.max(0, Math.min(612, initial + deltaX));
+              } else {
+                newGuides.horizontal[draggingGuide.index] = Math.max(0, Math.min(792, initial + deltaY));
+              }
+              return newGuides;
+            });
+          } else {
+            // Standard absolute tracking
+            const rect = pdfContainerRef.current.getBoundingClientRect();
+            const pos = draggingGuide.type === 'vertical'
+              ? (e.clientX - rect.left) / scale
+              : (e.clientY - rect.top) / scale;
+
+            setLocalGuides(prev => {
+              const newGuides = { ...prev };
+              if (draggingGuide.type === 'vertical') {
+                newGuides.vertical[draggingGuide.index] = Math.max(0, Math.min(612, pos));
+              } else {
+                newGuides.horizontal[draggingGuide.index] = Math.max(0, Math.min(792, pos));
+              }
+              return newGuides;
+            });
+          }
         }
       } else if (boxSelect) {
         const rect = pdfContainerRef.current.getBoundingClientRect();
@@ -1372,7 +1399,9 @@ export default function PDFViewer({
 
             const moveGuides = () => {
               arrowKeyHoldRef.current.count++;
-              const step = Math.min(1 + Math.floor(arrowKeyHoldRef.current.count / 10), 10);
+              // Capslock = precision mode (1px always), otherwise accelerate
+              const isCapsLock = e.getModifierState && e.getModifierState('CapsLock');
+              const step = isCapsLock ? 1 : Math.min(1 + Math.floor(arrowKeyHoldRef.current.count / 10), 10);
               const deltaX = e.key === 'ArrowLeft' ? -step : e.key === 'ArrowRight' ? step : 0;
               const deltaY = e.key === 'ArrowUp' ? -step : e.key === 'ArrowDown' ? step : 0;
 
@@ -1391,6 +1420,7 @@ export default function PDFViewer({
 
             moveGuides();
             arrowKeyHoldRef.current.interval = setInterval(moveGuides, 50);
+
           }
         }
       }
@@ -1480,6 +1510,15 @@ export default function PDFViewer({
     textAlign: field.alignment || 'left',
     textDecoration: field.underline ? 'underline' : 'none'
   });
+
+  // Clear split mode when selection changes (fixes "S-split not working after clicking another field")
+  useEffect(() => {
+    // Only clear if the split target field is no longer selected
+    if (splitMode && !selectedFields.includes(splitMode.fieldId)) {
+      setSplitMode(null);
+      setSplitPosition(null);
+    }
+  }, [selectedFields, splitMode]);
 
   return (
     <div className="flex flex-col h-full">
@@ -1575,17 +1614,11 @@ export default function PDFViewer({
               →
             </Button>
           </div>
-          <select
-            value={Math.round(scale * 100)}
-            onChange={(e) => setScale(parseInt(e.target.value) / 100)}
-            className="px-2 py-1 border border-slate-300 dark:border-slate-600 rounded text-sm"
-          >
-            <option value="50">50%</option>
-            <option value="75">75%</option>
-            <option value="100">100%</option>
-            <option value="125">125%</option>
-            <option value="150">150%</option>
-          </select>
+          <ZoomSlider
+            scale={scale}
+            onScaleChange={setScale}
+          />
+
         </div>
       </div>
 
@@ -1647,6 +1680,9 @@ export default function PDFViewer({
               }
               return;
             }
+
+            // Prevent clearing split mode if active (user must press Escape or click the field)
+            if (splitMode) return;
 
             if (justFinishedBoxSelect.current) return; // Don't clear after box select
             if (e.target === pdfContainerRef.current) {

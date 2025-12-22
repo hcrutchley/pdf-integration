@@ -3,7 +3,7 @@ import { Upload, FileUp, Database, ArrowRight, X, AlertCircle, CheckCircle } fro
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import SearchableSelect from '@/components/ui/SearchableSelect';
-import { parseImportFile, importTemplateFull, importTemplateFieldsOnly } from '../services/exportService';
+import { parseImportFile, parseBatchImport, importTemplateFull, importTemplateFieldsOnly } from '../services/exportService';
 import { toast } from 'sonner';
 
 export default function ImportTemplateDialog({
@@ -16,7 +16,7 @@ export default function ImportTemplateDialog({
     const [step, setStep] = useState('upload'); // 'upload', 'configure', 'importing'
     const [importData, setImportData] = useState(null);
     const [selectedConnection, setSelectedConnection] = useState('');
-    const [importMode, setImportMode] = useState('full'); // 'full' or 'fields_only'
+    const [importMode, setImportMode] = useState('full'); // 'full', 'fields_only', or 'batch'
     const [error, setError] = useState(null);
     const [isImporting, setIsImporting] = useState(false);
 
@@ -24,17 +24,25 @@ export default function ImportTemplateDialog({
         const file = e.target.files?.[0];
         if (!file) return;
 
-        // Validate file extension
-        if (!file.name.endsWith('.airpdf')) {
-            setError('Please select a valid .airpdf file');
-            return;
-        }
-
         try {
             setError(null);
-            const data = await parseImportFile(file);
-            setImportData(data);
-            setStep('configure');
+
+            if (file.name.endsWith('.airpdf')) {
+                const data = await parseImportFile(file);
+                data.type = 'single';
+                setImportData(data);
+                setImportMode('full');
+                setStep('configure');
+            } else if (file.name.endsWith('.zip')) {
+                const items = await parseBatchImport(file);
+                if (items.length === 0) throw new Error('No importable files found in ZIP');
+
+                setImportData({ type: 'batch', items });
+                setImportMode('batch');
+                setStep('configure');
+            } else {
+                setError('Please select a valid .airpdf or .zip file');
+            }
         } catch (err) {
             setError(err.message);
         }
@@ -50,8 +58,6 @@ export default function ImportTemplateDialog({
         setError(null);
 
         try {
-            // For now, we'll pass the import data to the parent
-            // The parent will handle the actual PDF upload since it has access to fileStorage
             await onImportComplete({
                 data: importData,
                 connectionId: selectedConnection,
@@ -59,7 +65,7 @@ export default function ImportTemplateDialog({
             });
 
             handleClose();
-            toast.success('Template imported successfully');
+            toast.success('Import completed successfully');
         } catch (err) {
             setError(err.message || 'Import failed');
         } finally {
@@ -92,7 +98,7 @@ export default function ImportTemplateDialog({
                                 Import Template
                             </h2>
                             <p className="text-sm text-slate-500">
-                                {step === 'upload' ? 'Upload an .airpdf file' : 'Configure import settings'}
+                                {step === 'upload' ? 'Upload .airpdf or .zip' : 'Configure import settings'}
                             </p>
                         </div>
                     </div>
@@ -120,15 +126,15 @@ export default function ImportTemplateDialog({
                         >
                             <FileUp className="h-12 w-12 mx-auto text-slate-400 mb-4" />
                             <p className="text-slate-600 dark:text-slate-300 font-medium">
-                                Click to select an .airpdf file
+                                Click to upload .airpdf or .zip
                             </p>
                             <p className="text-sm text-slate-400 mt-2">
-                                Or drag and drop here
+                                Support for single templates or batch export archives
                             </p>
                             <input
                                 ref={fileInputRef}
                                 type="file"
-                                accept=".airpdf"
+                                accept=".airpdf,.zip"
                                 onChange={handleFileSelect}
                                 className="hidden"
                             />
@@ -142,34 +148,41 @@ export default function ImportTemplateDialog({
                                 <div className="flex items-center gap-3 mb-3">
                                     <CheckCircle className="h-5 w-5 text-green-500" />
                                     <span className="font-medium text-slate-900 dark:text-slate-100">
-                                        File parsed successfully
+                                        {importData.type === 'batch' ? 'Batch Archive Detected' : 'File parsed successfully'}
                                     </span>
                                 </div>
                                 <div className="grid grid-cols-2 gap-4 text-sm">
-                                    <div>
-                                        <span className="text-slate-500">Template:</span>
-                                        <p className="font-medium text-slate-900 dark:text-slate-100">
-                                            {importData.template.name}
-                                        </p>
-                                    </div>
-                                    <div>
-                                        <span className="text-slate-500">Fields:</span>
-                                        <p className="font-medium text-slate-900 dark:text-slate-100">
-                                            {importData.template.fields?.length || 0} fields
-                                        </p>
-                                    </div>
-                                    <div>
-                                        <span className="text-slate-500">Original Table:</span>
-                                        <p className="font-medium text-slate-900 dark:text-slate-100">
-                                            {importData.template.airtable_table_name || 'Not set'}
-                                        </p>
-                                    </div>
-                                    <div>
-                                        <span className="text-slate-500">Version:</span>
-                                        <p className="font-medium text-slate-900 dark:text-slate-100">
-                                            {importData.version}
-                                        </p>
-                                    </div>
+                                    {importData.type === 'batch' ? (
+                                        <>
+                                            <div>
+                                                <span className="text-slate-500">Total Items:</span>
+                                                <p className="font-medium text-slate-900 dark:text-slate-100">
+                                                    {importData.items.length} files
+                                                </p>
+                                            </div>
+                                            <div>
+                                                <span className="text-slate-500">Types:</span>
+                                                <p className="font-medium text-slate-900 dark:text-slate-100">
+                                                    {importData.items.filter(i => i.type === 'airpdf').length} .airpdf, {importData.items.filter(i => i.type === 'pdf').length} .pdf
+                                                </p>
+                                            </div>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <div>
+                                                <span className="text-slate-500">Template:</span>
+                                                <p className="font-medium text-slate-900 dark:text-slate-100">
+                                                    {importData.template.name}
+                                                </p>
+                                            </div>
+                                            <div>
+                                                <span className="text-slate-500">Fields:</span>
+                                                <p className="font-medium text-slate-900 dark:text-slate-100">
+                                                    {importData.template.fields?.length || 0} fields
+                                                </p>
+                                            </div>
+                                        </>
+                                    )}
                                 </div>
                             </div>
 
@@ -185,46 +198,42 @@ export default function ImportTemplateDialog({
                                     placeholder="Select Airtable connection..."
                                 />
                                 <p className="text-xs text-slate-400 mt-1">
-                                    The template will use the same base and table names from the export
+                                    All templates will be mapped to this connection
                                 </p>
                             </div>
 
-                            {/* Import Mode */}
-                            <div>
-                                <Label className="text-xs font-semibold text-slate-500 uppercase mb-2 block">
-                                    Import Mode
-                                </Label>
-                                <div className="grid grid-cols-2 gap-3">
-                                    <button
-                                        onClick={() => setImportMode('full')}
-                                        className={`p-3 rounded-lg border-2 text-left transition-all ${importMode === 'full'
+                            {/* Import Mode selection only for single files */}
+                            {importData.type !== 'batch' && (
+                                <div>
+                                    <Label className="text-xs font-semibold text-slate-500 uppercase mb-2 block">
+                                        Import Mode
+                                    </Label>
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <button
+                                            onClick={() => setImportMode('full')}
+                                            className={`p-3 rounded-lg border-2 text-left transition-all ${importMode === 'full'
                                                 ? 'border-teal-500 bg-teal-50 dark:bg-teal-900/20'
                                                 : 'border-slate-200 dark:border-slate-600 hover:border-slate-300'
-                                            }`}
-                                    >
-                                        <p className="font-medium text-slate-900 dark:text-slate-100 text-sm">
-                                            Full Import
-                                        </p>
-                                        <p className="text-xs text-slate-500 mt-1">
-                                            Creates new template with PDF
-                                        </p>
-                                    </button>
-                                    <button
-                                        onClick={() => setImportMode('fields_only')}
-                                        className={`p-3 rounded-lg border-2 text-left transition-all ${importMode === 'fields_only'
+                                                }`}
+                                        >
+                                            <p className="font-medium text-slate-900 dark:text-slate-100 text-sm">
+                                                Full Import
+                                            </p>
+                                        </button>
+                                        <button
+                                            onClick={() => setImportMode('fields_only')}
+                                            className={`p-3 rounded-lg border-2 text-left transition-all ${importMode === 'fields_only'
                                                 ? 'border-teal-500 bg-teal-50 dark:bg-teal-900/20'
                                                 : 'border-slate-200 dark:border-slate-600 hover:border-slate-300'
-                                            }`}
-                                    >
-                                        <p className="font-medium text-slate-900 dark:text-slate-100 text-sm">
-                                            Fields Only
-                                        </p>
-                                        <p className="text-xs text-slate-500 mt-1">
-                                            Import into existing template
-                                        </p>
-                                    </button>
+                                                }`}
+                                        >
+                                            <p className="font-medium text-slate-900 dark:text-slate-100 text-sm">
+                                                Fields Only
+                                            </p>
+                                        </button>
+                                    </div>
                                 </div>
-                            </div>
+                            )}
                         </div>
                     )}
                 </div>
@@ -241,7 +250,7 @@ export default function ImportTemplateDialog({
                         >
                             {isImporting ? 'Importing...' : (
                                 <>
-                                    Import Template
+                                    {importData.type === 'batch' ? 'Start Batch Import' : 'Import Template'}
                                     <ArrowRight className="h-4 w-4 ml-2" />
                                 </>
                             )}
@@ -252,3 +261,4 @@ export default function ImportTemplateDialog({
         </div>
     );
 }
+
