@@ -93,6 +93,14 @@ export const db = {
     async delete(id) {
       return await db.delete("AirtableConnection", id);
     },
+    async getBases(id) {
+      const response = await apiRequest(`/api/connections/${id}/bases`);
+      return response.bases || [];
+    },
+    async getSchema(id, baseId) {
+      const response = await apiRequest(`/api/connections/${id}/tables/${baseId}`);
+      return response.tables || [];
+    },
   },
 
   sections: {

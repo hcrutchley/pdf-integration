@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, Users, Copy, Check } from 'lucide-react';
+import { Plus, Users, Copy, Check, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -70,6 +70,16 @@ export default function Organizations() {
     },
     onError: (error) => {
       toast.error(error.message);
+    }
+  });
+
+  const deleteOrgMutation = useMutation({
+    mutationFn: async (id) => {
+      await db.organizations.delete(id);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries(['organizations']);
+      toast.success('Organization deleted');
     }
   });
 
@@ -179,11 +189,27 @@ export default function Organizations() {
                   <CardHeader>
                     <CardTitle className="flex items-center justify-between">
                       <span>{org.name}</span>
-                      {isOwner && (
-                        <span className="text-xs font-normal bg-teal-100 dark:bg-teal-900/30 text-teal-800 dark:text-teal-200 px-2 py-1 rounded">
-                          Owner
-                        </span>
-                      )}
+                      <div className="flex items-center gap-2">
+                        {isOwner && (
+                          <span className="text-xs font-normal bg-teal-100 dark:bg-teal-900/30 text-teal-800 dark:text-teal-200 px-2 py-1 rounded">
+                            Owner
+                          </span>
+                        )}
+                        {isOwner && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6 text-red-500 hover:text-red-700 hover:bg-red-50"
+                            onClick={() => {
+                              if (confirm('Are you sure you want to delete this organization?')) {
+                                deleteOrgMutation.mutate(org.id);
+                              }
+                            }}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </div>
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-3">

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, Database, Trash2, Check, X, Star } from 'lucide-react';
+import { Plus, Database, Trash2, Check, X, Star, Settings } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -19,14 +19,15 @@ import SearchableSelect from '../components/ui/SearchableSelect';
 import { useOrgContext } from '../components/context/OrgContext';
 
 export default function Connections() {
-  const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [editingConnection, setEditingConnection] = useState(null);
   const [formData, setFormData] = useState({ name: '', api_key: '', is_default: false });
   const [testStatus, setTestStatus] = useState(null);
   const [isTesting, setIsTesting] = useState(false);
   const [availableBases, setAvailableBases] = useState([]);
   const [availableTables, setAvailableTables] = useState([]);
   const [loadingBases, setLoadingBases] = useState(false);
-  
+
   const queryClient = useQueryClient();
   const { getContextFilter } = useOrgContext();
 
@@ -36,7 +37,7 @@ export default function Connections() {
   });
 
   const contextFilter = getContextFilter();
-  const connections = allConnections.filter(c => 
+  const connections = allConnections.filter(c =>
     (contextFilter.organization_id === null && !c.organization_id) ||
     (c.organization_id === contextFilter.organization_id)
   );
@@ -45,9 +46,8 @@ export default function Connections() {
     mutationFn: (data) => db.connections.create(data),
     onSuccess: () => {
       queryClient.invalidateQueries(['connections']);
-      setIsCreateOpen(false);
-      setFormData({ name: '', api_key: '' });
-      setTestStatus(null);
+      setIsDialogOpen(false);
+      resetForm();
     }
   });
 
@@ -62,19 +62,54 @@ export default function Connections() {
     mutationFn: ({ id, data }) => db.connections.update(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries(['connections']);
+      setIsDialogOpen(false);
+      resetForm();
     }
   });
 
-  const handleTestConnection = async () => {
-    if (!formData.api_key) return;
+  const resetForm = () => {
+    setFormData({ name: '', api_key: '', is_default: false });
+    setEditingConnection(null);
+    setTestStatus(null);
+    setAvailableBases([]);
+    setAvailableTables([]);
+  };
 
+  const handleEdit = async (connection) => {
+    setEditingConnection(connection);
+    setFormData({
+      name: connection.name,
+      api_key: '', // Keep blank
+      is_default: connection.is_default,
+      default_base_id: connection.default_base_id,
+      default_table_name: connection.default_table_name
+    });
+    setTestStatus({ valid: true }); // Assume valid initially
+    setIsDialogOpen(true);
+
+    // Load bases via proxy
+    await loadBases(null, connection.id);
+    if (connection.default_base_id) {
+      await loadTables(null, connection.default_base_id, connection.id);
+    }
+  };
+
+  const handleTestConnection = async () => {
     setIsTesting(true);
     try {
-      const result = await airtableService.testConnection(formData.api_key);
-      setTestStatus(result);
-      
-      if (result.valid) {
-        loadBases(formData.api_key);
+      if (editingConnection && !formData.api_key) {
+        // Test via proxy check
+        await db.connections.getBases(editingConnection.id);
+        setTestStatus({ valid: true });
+        loadBases(null, editingConnection.id);
+      } else {
+        // Test via direct API key
+        if (!formData.api_key) return;
+        const result = await airtableService.testConnection(formData.api_key);
+        setTestStatus(result);
+        if (result.valid) {
+          loadBases(formData.api_key);
+        }
       }
     } catch (error) {
       setTestStatus({ valid: false, error: error.message });
@@ -83,10 +118,15 @@ export default function Connections() {
     }
   };
 
-  const loadBases = async (apiKey) => {
+  const loadBases = async (apiKey, connectionId = null) => {
     try {
       setLoadingBases(true);
-      const bases = await airtableService.getBases(apiKey);
+      let bases = [];
+      if (connectionId) {
+        bases = await db.connections.getBases(connectionId);
+      } else if (apiKey) {
+        bases = await airtableService.getBases(apiKey);
+      }
       setAvailableBases(bases);
     } catch (error) {
       console.error('Failed to load bases:', error);
@@ -95,23 +135,34 @@ export default function Connections() {
     }
   };
 
-  const loadTables = async (apiKey, baseId) => {
+  const loadTables = async (apiKey, baseId, connectionId = null) => {
     try {
-      const tables = await airtableService.getBaseSchema(apiKey, baseId);
+      let tables = [];
+      if (connectionId) {
+        tables = await db.connections.getSchema(connectionId, baseId);
+      } else if (apiKey) {
+        tables = await airtableService.getBaseSchema(apiKey, baseId);
+      }
       setAvailableTables(tables);
     } catch (error) {
       console.error('Failed to load tables:', error);
     }
   };
 
-  const handleCreate = async () => {
-    if (!formData.name || !formData.api_key) {
-      alert('Please fill in all fields');
+  const handleSave = async () => {
+    if (!formData.name) {
+      alert('Name required');
       return;
     }
 
+    if (!editingConnection && !formData.api_key) {
+      alert('API Key required');
+      return;
+    }
+
+    // Handle defaults logic (same for create/update)
     if (formData.is_default) {
-      const defaultConnections = connections.filter(c => c.is_default);
+      const defaultConnections = connections.filter(c => c.is_default && c.id !== editingConnection?.id);
       for (const conn of defaultConnections) {
         await updateMutation.mutateAsync({
           id: conn.id,
@@ -120,24 +171,36 @@ export default function Connections() {
       }
     }
 
-    await createMutation.mutateAsync({
-      ...formData,
-      organization_id: contextFilter.organization_id
-    });
+    if (editingConnection) {
+      const updates = { ...formData };
+      if (!updates.api_key) delete updates.api_key; // Don't send empty key
+
+      await updateMutation.mutateAsync({
+        id: editingConnection.id,
+        data: updates
+      });
+    } else {
+      await createMutation.mutateAsync({
+        ...formData,
+        organization_id: contextFilter.organization_id
+      });
+    }
   };
 
   const handleSetDefault = async (connection) => {
-    const defaultConnections = connections.filter(c => c.is_default && c.id !== connection.id);
+    if (connection.is_default) return; // Already default
+
+    const defaultConnections = connections.filter(c => c.is_default);
     for (const conn of defaultConnections) {
       await updateMutation.mutateAsync({
         id: conn.id,
         data: { is_default: false }
       });
     }
-    
+
     updateMutation.mutate({
       id: connection.id,
-      data: { is_default: !connection.is_default }
+      data: { is_default: true }
     });
   };
 
@@ -234,6 +297,14 @@ export default function Connections() {
                       <Button
                         variant="ghost"
                         size="icon"
+                        onClick={() => handleEdit(connection)}
+                        className="text-slate-500 hover:text-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800"
+                      >
+                        <Settings className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
                         onClick={() => handleDelete(connection)}
                         className="text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/30"
                       >
@@ -247,11 +318,11 @@ export default function Connections() {
           </div>
         )}
 
-        {/* Create Dialog */}
-        <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+        {/* Create/Edit Dialog */}
+        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogContent className="sm:max-w-md">
             <DialogHeader>
-              <DialogTitle>Add Airtable Connection</DialogTitle>
+              <DialogTitle>{editingConnection ? 'Edit Connection' : 'Add Airtable Connection'}</DialogTitle>
             </DialogHeader>
             <div className="space-y-4">
               <div>
@@ -266,7 +337,7 @@ export default function Connections() {
                 <Label>Personal Access Token</Label>
                 <Input
                   type="password"
-                  placeholder="patXXXXXXXXXXXXXXXX"
+                  placeholder={editingConnection ? "Leave blank to keep unchanged" : "patXXXXXXXXXXXXXXXX"}
                   value={formData.api_key}
                   onChange={(e) => setFormData({ ...formData, api_key: e.target.value })}
                 />
@@ -348,15 +419,15 @@ export default function Connections() {
               )}
             </div>
             <DialogFooter>
-              <Button variant="outline" onClick={() => setIsCreateOpen(false)}>
+              <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
                 Cancel
               </Button>
               <Button
-                onClick={handleCreate}
-                disabled={!testStatus?.valid}
+                onClick={handleSave}
+                disabled={(!editingConnection && !testStatus?.valid) || (editingConnection && !testStatus?.valid)}
                 className="bg-teal-600 hover:bg-teal-700"
               >
-                Create
+                {editingConnection ? 'Save Changes' : 'Create'}
               </Button>
             </DialogFooter>
           </DialogContent>

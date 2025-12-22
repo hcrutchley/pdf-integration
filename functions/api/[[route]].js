@@ -91,6 +91,17 @@ export async function onRequest(context) {
         return new Response("Method Not Allowed", { status: 405 });
     }
 
+    // Airtable Proxy Management
+    const connBasesMatch = path.match(/^\/api\/connections\/([^/]+)\/bases$/);
+    if (connBasesMatch && method === "GET") {
+        return handleAirtableProxy(env, currentUser, connBasesMatch[1], "bases");
+    }
+
+    const connTablesMatch = path.match(/^\/api\/connections\/([^/]+)\/tables\/([^/]+)$/);
+    if (connTablesMatch && method === "GET") {
+        return handleAirtableProxy(env, currentUser, connTablesMatch[1], "tables", connTablesMatch[2]);
+    }
+
     return new Response("Not Found", { status: 404 });
 }
 
@@ -458,11 +469,6 @@ async function secureUpdate(env, entityName, id, updates, user) {
 }
 
 async function secureDelete(env, entityName, id, user) {
-    // Similar simplified auth check - we can just use the WHERE clause in delete?
-    // No, D1 delete with multiple conditions is fine, but constructing it with orgs is annoying.
-    // Better to verify existence/access first then delete by ID, or dynamic delete query.
-    // Dynamic delete query is safest.
-
     const orgIds = await getOrgIds(env, user);
     let query = `DELETE FROM entities WHERE id = ? AND entity_name = ? AND (json_extract(data, '$.user_id') = ?`;
     const bindings = [id, entityName, user.id];
@@ -474,4 +480,48 @@ async function secureDelete(env, entityName, id, user) {
 
     await env.DB.prepare(query).bind(...bindings).run();
     return new Response(null, { status: 204 });
+}
+
+async function handleAirtableProxy(env, user, connectionId, type, baseId) {
+    // 1. Verify access to connection
+    const orgIds = await getOrgIds(env, user);
+    let query = `SELECT data FROM entities WHERE id = ? AND entity_name = 'AirtableConnection' AND (json_extract(data, '$.user_id') = ?`;
+    const bindings = [connectionId, user.id];
+
+    if (orgIds.length > 0) {
+        const placeholders = orgIds.map(() => '?').join(',');
+        query += ` OR json_extract(data, '$.organization_id') IN (${placeholders})`;
+        bindings.push(...orgIds);
+    }
+    query += ')';
+
+    const { results } = await env.DB.prepare(query).bind(...bindings).all();
+    if (!results.length) return errorResponse("Connection not found or access denied", 404);
+
+    const connection = JSON.parse(results[0].data);
+    const apiKey = connection.api_key;
+
+    if (!apiKey) return errorResponse("API Key missing", 400);
+
+    // 2. Call Airtable API
+    let url = "";
+    if (type === "bases") {
+        url = "https://api.airtable.com/v0/meta/bases";
+    } else if (type === "tables" && baseId) {
+        url = `https://api.airtable.com/v0/meta/bases/${baseId}/tables`;
+    } else {
+        return errorResponse("Invalid proxy request", 400);
+    }
+
+    const response = await fetch(url, {
+        headers: { Authorization: `Bearer ${apiKey}` }
+    });
+
+    if (!response.ok) {
+        const text = await response.text();
+        return new Response(text, { status: response.status });
+    }
+
+    const data = await response.json();
+    return jsonResponse(data);
 }
