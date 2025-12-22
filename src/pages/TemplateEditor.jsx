@@ -7,10 +7,12 @@ import { aiService } from '../components/services/aiService';
 import { airtableService } from '../components/services/airtableService';
 import { fileStorage } from '../components/services/fileStorage';
 import { pdfService } from '../components/services/pdfService';
+import { exportTemplate } from '../components/services/exportService';
 import EditorLayout from '../components/editor/EditorLayout';
 import SettingsView from '../components/editor/SettingsView';
 import DesignView from '../components/editor/DesignView';
 import { createPageUrl } from '@/utils';
+
 
 const AUTOSAVE_INTERVAL_MS = 60000; // 60 seconds
 
@@ -34,6 +36,8 @@ export default function TemplateEditor() {
   const [isPreviewing, setIsPreviewing] = useState(false);
   const [guides, setGuides] = useState({ vertical: [], horizontal: [] });
   const [isSyncing, setIsSyncing] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
+
 
   // Dirty flag for tracking unsaved changes
   const isDirtyRef = useRef(false);
@@ -344,7 +348,27 @@ export default function TemplateEditor() {
     updateCache(updates);
   }, [updateCache]);
 
+  // Export handler
+  const handleExport = useCallback(async () => {
+    if (!template || !template.pdf_url) {
+      toast.error('Cannot export: Template has no PDF');
+      return;
+    }
+
+    setIsExporting(true);
+    try {
+      await exportTemplate(template, template.pdf_url);
+      toast.success('Template exported successfully');
+    } catch (error) {
+      console.error('Export failed:', error);
+      toast.error('Failed to export template');
+    } finally {
+      setIsExporting(false);
+    }
+  }, [template]);
+
   const [settingsOpen, setSettingsOpen] = useState(false);
+
 
   if (isLoading) {
     return (
@@ -367,12 +391,15 @@ export default function TemplateEditor() {
       templateName={template.name}
       onSave={handleManualSave}
       onPreview={handlePreview}
+      onExport={handleExport}
       isPreviewing={isPreviewing}
       canPreview={!!(selectedTestRecord && template.airtable_connection_id)}
       isSaving={isSyncing}
+      isExporting={isExporting}
       onSettingsToggle={() => setSettingsOpen(!settingsOpen)}
       settingsOpen={settingsOpen}
     >
+
       <DesignView
         template={template}
         onUpdateField={handleUpdateField}

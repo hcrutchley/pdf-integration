@@ -34,7 +34,7 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-900">
-      <div className="max-w-7xl mx-auto p-6 space-y-6">
+      <div className="max-w-7xl mx-auto p-6 space-y-6 animate-fade-in">
         {/* Header */}
         <div>
           <h1 className="text-3xl font-bold text-slate-900 dark:text-slate-100">
@@ -179,13 +179,12 @@ export default function Dashboard() {
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
-                      <span className={`text-xs px-2 py-1 rounded ${
-                        pdf.status === 'completed' || pdf.status === 'uploaded'
+                      <span className={`text-xs px-2 py-1 rounded ${pdf.status === 'completed' || pdf.status === 'uploaded'
                           ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
                           : pdf.status === 'failed'
-                          ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
-                          : 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400'
-                      }`}>
+                            ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+                            : 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400'
+                        }`}>
                         {pdf.status}
                       </span>
                       {pdf.pdf_url && (

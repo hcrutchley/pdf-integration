@@ -102,9 +102,10 @@ const Navigation = ({ currentPageName }) => {
     { name: 'Connections', icon: Database, path: createPageUrl('Connections') },
     { name: 'Organizations', icon: Users, path: createPageUrl('Organizations') },
     { name: 'History', icon: History, path: createPageUrl('History') },
-    { name: 'Admin Panel', icon: Shield, path: '/admin' },
+    // { name: 'Admin Panel', icon: Shield, path: '/admin' }, // Hidden until admin features added
     { name: 'Settings', icon: Settings, path: createPageUrl('Settings') },
   ];
+
 
   return (
     <nav className="space-y-0.5">

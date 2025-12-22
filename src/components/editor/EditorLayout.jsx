@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ArrowLeft, Save, Eye, Settings, PenTool, Database, Zap, ChevronDown, ChevronRight } from 'lucide-react';
+import { ArrowLeft, Save, Eye, Settings, PenTool, Database, Zap, ChevronDown, ChevronRight, Download } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { useNavigate } from 'react-router-dom';
@@ -9,15 +9,18 @@ export default function EditorLayout({
     templateName,
     onSave,
     onPreview,
+    onExport,
     isPreviewing,
     canPreview,
     isSaving,
+    isExporting,
     children,
     // Settings drawer toggle
     onSettingsToggle,
     settingsOpen
 }) {
     const navigate = useNavigate();
+
 
     return (
         <div className="flex flex-col h-screen bg-slate-50 dark:bg-slate-950 overflow-hidden">
@@ -64,6 +67,16 @@ export default function EditorLayout({
                     </Button>
                     <div className="w-px h-6 bg-slate-200 dark:bg-slate-700 mx-1" />
                     <Button
+                        variant="ghost"
+                        onClick={onExport}
+                        disabled={isExporting}
+                        size="sm"
+                        className="text-slate-500"
+                    >
+                        <Download className="h-4 w-4 mr-1" />
+                        {isExporting ? 'Exporting...' : 'Export'}
+                    </Button>
+                    <Button
                         variant="outline"
                         onClick={onPreview}
                         disabled={!canPreview || isPreviewing}
@@ -90,6 +103,7 @@ export default function EditorLayout({
 
             {/* Main Content Area */}
             <main className="flex-1 overflow-hidden relative">
+
                 {children}
             </main>
         </div>

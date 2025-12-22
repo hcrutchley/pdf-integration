@@ -1,23 +1,38 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, Upload, Search } from 'lucide-react';
+import { Plus, Upload, Search, Download } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { db } from '../components/services/database';
 import { fileStorage } from '../components/services/fileStorage';
 import SectionManager from '../components/sections/SectionManager';
 import TemplateCard from '../components/templates/TemplateCard';
+import ImportTemplateDialog from '../components/import/ImportTemplateDialog';
 import { useNavigate } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import { useOrgContext } from '../components/context/OrgContext';
+import { toast } from 'sonner';
+
+// Helper to convert base64 to blob
+function base64ToBlob(base64, mimeType) {
+  const byteCharacters = atob(base64);
+  const byteNumbers = new Array(byteCharacters.length);
+  for (let i = 0; i < byteCharacters.length; i++) {
+    byteNumbers[i] = byteCharacters.charCodeAt(i);
+  }
+  const byteArray = new Uint8Array(byteNumbers);
+  return new Blob([byteArray], { type: mimeType });
+}
 
 export default function Templates() {
   const [selectedSection, setSelectedSection] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [isUploading, setIsUploading] = useState(false);
+  const [isImportOpen, setIsImportOpen] = useState(false);
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const { getContextFilter } = useOrgContext();
+
 
   const { data: allTemplates = [] } = useQuery({
     queryKey: ['templates'],
@@ -25,7 +40,7 @@ export default function Templates() {
   });
 
   const contextFilter = getContextFilter();
-  const templates = allTemplates.filter(t => 
+  const templates = allTemplates.filter(t =>
     (contextFilter.organization_id === null && !t.organization_id) ||
     (t.organization_id === contextFilter.organization_id)
   );
@@ -35,7 +50,7 @@ export default function Templates() {
     queryFn: () => db.sections.getAll()
   });
 
-  const sections = allSections.filter(s => 
+  const sections = allSections.filter(s =>
     (contextFilter.organization_id === null && !s.organization_id) ||
     (s.organization_id === contextFilter.organization_id)
   );
@@ -88,7 +103,7 @@ export default function Templates() {
     queryFn: () => db.connections.getAll()
   });
 
-  const connections = allConnections.filter(c => 
+  const connections = allConnections.filter(c =>
     (contextFilter.organization_id === null && !c.organization_id) ||
     (c.organization_id === contextFilter.organization_id)
   );
@@ -105,10 +120,10 @@ export default function Templates() {
     setIsUploading(true);
     try {
       const fileUrl = await fileStorage.uploadFile(file);
-      
+
       // Find default connection
       const defaultConnection = connections.find(c => c.is_default);
-      
+
       await createTemplateMutation.mutateAsync({
         name: file.name.replace('.pdf', ''),
         pdf_url: fileUrl,
@@ -142,12 +157,57 @@ export default function Templates() {
     }
   };
 
+  // Handle import from .airpdf file
+  const handleImportComplete = useCallback(async ({ data, connectionId, mode }) => {
+    try {
+      if (mode === 'full') {
+        // Decode and upload the PDF
+        const pdfBlob = base64ToBlob(data.pdf, 'application/pdf');
+        const pdfUrl = await fileStorage.uploadFile(pdfBlob, `${data.template.name}.pdf`);
+
+        // Create new template
+        const newTemplate = {
+          name: data.template.name,
+          fields: data.template.fields || [],
+          guides: data.template.guides || { vertical: [], horizontal: [] },
+          pdf_url: pdfUrl,
+          airtable_connection_id: connectionId,
+          airtable_base_id: data.template.airtable_base_id,
+          airtable_table_name: data.template.airtable_table_name,
+          trigger_field: data.template.trigger_field,
+          trigger_value: data.template.trigger_value,
+          output_field: data.template.output_field,
+          default_font: data.template.default_font,
+          default_font_size: data.template.default_font_size,
+          default_alignment: data.template.default_alignment,
+          default_bold: data.template.default_bold,
+          default_italic: data.template.default_italic,
+          default_underline: data.template.default_underline,
+          section_id: selectedSection?.id || null,
+          status: 'draft',
+          organization_id: contextFilter.organization_id
+        };
+
+        await createTemplateMutation.mutateAsync(newTemplate);
+        toast.success('Template imported successfully');
+      } else if (mode === 'fields_only') {
+        // For fields only, we'd need to select a target template first
+        // For now, just show a message
+        toast.info('Fields-only import requires selecting a target template (coming soon)');
+      }
+    } catch (error) {
+      console.error('Import failed:', error);
+      throw error;
+    }
+  }, [selectedSection, contextFilter, createTemplateMutation]);
+
   const filteredTemplates = templates.filter(t => {
     const matchesSection = !selectedSection || t.section_id === selectedSection.id;
-    const matchesSearch = !searchQuery || 
+    const matchesSearch = !searchQuery ||
       t.name.toLowerCase().includes(searchQuery.toLowerCase());
     return matchesSection && matchesSearch;
   });
+
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-900">
@@ -187,6 +247,13 @@ export default function Templates() {
                   disabled={isUploading}
                 />
                 <Button
+                  variant="outline"
+                  onClick={() => setIsImportOpen(true)}
+                >
+                  <Download className="h-4 w-4 mr-2" />
+                  Import
+                </Button>
+                <Button
                   onClick={() => document.getElementById('pdf-upload').click()}
                   className="bg-teal-600 hover:bg-teal-700"
                   disabled={isUploading}
@@ -195,6 +262,7 @@ export default function Templates() {
                   {isUploading ? 'Uploading...' : 'Upload PDF'}
                 </Button>
               </div>
+
             </div>
 
             {/* Search */}
@@ -238,6 +306,14 @@ export default function Templates() {
           </div>
         </div>
       </div>
+
+      {/* Import Dialog */}
+      <ImportTemplateDialog
+        isOpen={isImportOpen}
+        onClose={() => setIsImportOpen(false)}
+        connections={connections}
+        onImportComplete={handleImportComplete}
+      />
     </div>
   );
 }
