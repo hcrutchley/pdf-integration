@@ -132,7 +132,13 @@ async function handleList(env, entityName, url, currentUser) {
 
   query += ')';
 
+  console.log('[RLS DEBUG] currentUser:', JSON.stringify(currentUser));
+  console.log('[RLS DEBUG] query:', query);
+  console.log('[RLS DEBUG] bindings:', JSON.stringify(bindings));
+
   const { results } = await env.DB.prepare(query).bind(...bindings).all();
+
+  console.log('[RLS DEBUG] results count:', results.length);
 
   let items = results.map((row) => {
     const data = JSON.parse(row.data);
@@ -173,8 +179,13 @@ async function handleCreate(env, entityName, data, currentUser) {
   const id = crypto.randomUUID();
   const now = new Date().toISOString();
 
+  console.log('[CREATE DEBUG] currentUser.id:', currentUser.id);
+  console.log('[CREATE DEBUG] entityName:', entityName);
+
   // RLS: Inject user_id into data
   const securedData = { ...data, user_id: currentUser.id };
+
+  console.log('[CREATE DEBUG] securedData.user_id:', securedData.user_id);
 
   await env.DB.prepare(
     "INSERT INTO entities (id, entity_name, data, created_date, updated_date) VALUES (?, ?, ?, ?, ?)"
