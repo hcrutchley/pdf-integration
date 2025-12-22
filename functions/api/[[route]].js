@@ -231,14 +231,20 @@ async function handleJoinOrg(context, user) {
     const { env, request } = context;
     const { code } = await request.json();
 
+    console.log('[JOIN DEBUG] Received code:', code);
+
     if (!code) return errorResponse("Join code required", 400);
 
     // Find organization by join code (BYPASS RLS - system lookup)
     const { results } = await env.DB.prepare(
         "SELECT id, data FROM entities WHERE entity_name = 'Organization' AND json_extract(data, '$.join_code') = ?"
-    ).bind(code.toUpperCase()).all();
+    ).bind(code.toUpperCase().trim()).all();
 
-    if (!results.length) return errorResponse("Invalid join code", 404);
+    console.log('[JOIN DEBUG] Lookup results count:', results.length);
+    if (!results.length) {
+        console.log('[JOIN DEBUG] No org found for code:', code.toUpperCase().trim());
+        return errorResponse("Invalid join code", 404);
+    }
 
     const row = results[0];
     const orgData = JSON.parse(row.data);
