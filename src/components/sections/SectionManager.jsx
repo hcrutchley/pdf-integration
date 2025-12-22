@@ -280,8 +280,12 @@ export default function SectionManager({
                             onClick={() => onSelectSection(section)}
                             className="flex-1 flex items-center gap-2 text-left min-w-0"
                           >
-                            <Folder className="h-4 w-4 flex-shrink-0" />
-                            <span className="truncate">{section.name}</span>
+                            <div className="flex-1 flex items-center gap-2 min-w-0 overflow-hidden">
+                              <Folder className="h-4 w-4 flex-shrink-0 text-slate-400 dark:text-slate-500" />
+                              <span className="truncate font-medium text-slate-700 dark:text-slate-200" title={section.name}>
+                                {section.name}
+                              </span>
+                            </div>
                           </button>
 
                           <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 flex-shrink-0">
@@ -340,7 +344,8 @@ export default function SectionManager({
 
                           </div>
                         </div>
-                      )}
+                      )
+                      }
                     </Draggable>
                   );
                 })}
@@ -401,6 +406,6 @@ export default function SectionManager({
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </div >
   );
 }

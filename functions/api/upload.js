@@ -5,6 +5,24 @@
 export async function onRequestPost(context) {
   const { env, request } = context;
 
+  // ========== AUTHENTICATION CHECK ==========
+  const authHeader = request.headers.get("Authorization");
+  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    return Response.json({ error: "Authentication required" }, { status: 401 });
+  }
+
+  const token = authHeader.substring(7);
+  const { results: sessions } = await env.DB.prepare(
+    "SELECT id FROM entities WHERE entity_name = 'Session' AND json_extract(data, '$.token') = ?"
+  )
+    .bind(token)
+    .all();
+
+  if (!sessions.length) {
+    return Response.json({ error: "Invalid session" }, { status: 401 });
+  }
+  // ========== END AUTHENTICATION CHECK ==========
+
   const contentType = request.headers.get("content-type") || "";
   if (!contentType.includes("multipart/form-data")) {
     return new Response("Expected multipart/form-data", { status: 400 });

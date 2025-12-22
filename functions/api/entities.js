@@ -66,44 +66,51 @@ export async function onRequest(context) {
   }
 
   if (method === "GET") {
-    if (id) return handleGet(env, entityName, id);
-    return handleList(env, entityName, url);
+    if (id) return handleGet(env, entityName, id, currentUser);
+    return handleList(env, entityName, url, currentUser);
   }
 
   if (method === "POST") {
     const body = await request.json();
     if (isBulk) {
       const items = body.items || [];
-      return handleBulkCreate(env, entityName, items);
+      return handleBulkCreate(env, entityName, items, currentUser);
     }
-    return handleCreate(env, entityName, body);
+    return handleCreate(env, entityName, body, currentUser);
   }
 
   if (method === "PUT" && id) {
     const data = await request.json();
-    return handleUpdate(env, entityName, id, data);
+    return handleUpdate(env, entityName, id, data, currentUser);
   }
 
   if (method === "DELETE" && id) {
-    return handleDelete(env, entityName, id);
+    return handleDelete(env, entityName, id, currentUser);
   }
 
   return new Response("Method Not Allowed", { status: 405 });
 }
 
-async function handleList(env, entityName, url) {
+async function handleList(env, entityName, url, currentUser) {
   const sort = url.searchParams.get("sort") || "-created_date";
   const limit = parseInt(url.searchParams.get("limit") || "100", 10);
   const whereStr = url.searchParams.get("where");
 
+  // RLS: Only select items where json_extract(data, '$.user_id') = currentUser.id
   const { results } = await env.DB.prepare(
-    "SELECT id, entity_name, data, created_date, updated_date FROM entities WHERE entity_name = ?"
+    "SELECT id, entity_name, data, created_date, updated_date FROM entities WHERE entity_name = ? AND json_extract(data, '$.user_id') = ?"
   )
-    .bind(entityName)
+    .bind(entityName, currentUser.id)
     .all();
 
   let items = results.map((row) => {
     const data = JSON.parse(row.data);
+
+    // Obfuscate strict secrets on read
+    if (row.entity_name === 'Connection' && data.apiKey) {
+      data.apiKey = 'sk-***' + data.apiKey.slice(-4);
+    }
+
     return {
       id: row.id,
       ...data,
@@ -131,25 +138,29 @@ async function handleList(env, entityName, url) {
   return Response.json(items.slice(0, limit));
 }
 
-async function handleCreate(env, entityName, data) {
+async function handleCreate(env, entityName, data, currentUser) {
   const id = crypto.randomUUID();
   const now = new Date().toISOString();
+
+  // RLS: Inject user_id into data
+  const securedData = { ...data, user_id: currentUser.id };
 
   await env.DB.prepare(
     "INSERT INTO entities (id, entity_name, data, created_date, updated_date) VALUES (?, ?, ?, ?, ?)"
   )
-    .bind(id, entityName, JSON.stringify(data), now, now)
+    .bind(id, entityName, JSON.stringify(securedData), now, now)
     .run();
 
   return Response.json(
-    { id, ...data, created_date: now, updated_date: now },
+    { id, ...securedData, created_date: now, updated_date: now },
     {
       status: 201,
+      headers: { "Content-Type": "application/json" }
     }
   );
 }
 
-async function handleBulkCreate(env, entityName, items) {
+async function handleBulkCreate(env, entityName, items, currentUser) {
   const now = new Date().toISOString();
   const created = [];
 
@@ -157,20 +168,27 @@ async function handleBulkCreate(env, entityName, items) {
     "INSERT INTO entities (id, entity_name, data, created_date, updated_date) VALUES (?, ?, ?, ?, ?)"
   );
 
+  const batch = [];
   for (const item of items) {
     const id = crypto.randomUUID();
-    await stmt.bind(id, entityName, JSON.stringify(item), now, now).run();
-    created.push({ id, ...item, created_date: now, updated_date: now });
+    // RLS: Inject user_id
+    const securedItem = { ...item, user_id: currentUser.id };
+    batch.push(stmt.bind(id, entityName, JSON.stringify(securedItem), now, now));
+    created.push({ id, ...securedItem, created_date: now, updated_date: now });
   }
+
+  // Execute in batch for performance
+  await env.DB.batch(batch);
 
   return Response.json(created, { status: 201 });
 }
 
-async function handleGet(env, entityName, id) {
+async function handleGet(env, entityName, id, currentUser) {
+  // RLS: Add AND user_id check
   const { results } = await env.DB.prepare(
-    "SELECT id, data, created_date, updated_date FROM entities WHERE id = ? AND entity_name = ?"
+    "SELECT id, data, created_date, updated_date FROM entities WHERE id = ? AND entity_name = ? AND json_extract(data, '$.user_id') = ?"
   )
-    .bind(id, entityName)
+    .bind(id, entityName, currentUser.id)
     .all();
 
   if (!results.length) {
@@ -187,28 +205,36 @@ async function handleGet(env, entityName, id) {
   });
 }
 
-async function handleUpdate(env, entityName, id, data) {
+async function handleUpdate(env, entityName, id, data, currentUser) {
   const now = new Date().toISOString();
 
-  // First, fetch the existing data so we can merge (not replace)
+  // RLS: Fetch existing data ensuring checking ownership first
   const { results } = await env.DB.prepare(
-    "SELECT data FROM entities WHERE id = ? AND entity_name = ?"
+    "SELECT data FROM entities WHERE id = ? AND entity_name = ? AND json_extract(data, '$.user_id') = ?"
   )
-    .bind(id, entityName)
+    .bind(id, entityName, currentUser.id)
     .all();
 
+  if (results.length === 0) {
+    return new Response("Not found or access denied", { status: 404 });
+  }
+
   let mergedData = data;
-  if (results.length > 0) {
-    try {
-      const existingData = JSON.parse(results[0].data);
-      // Merge: new data overwrites existing fields, but keeps fields not in the update
-      mergedData = { ...existingData, ...data };
-    } catch (e) {
-      // If JSON parse fails, we fallback to just saving the new data
-      // This prevents 502 errors from corrupted data
-      console.error("Failed to parse existing data:", e);
-      mergedData = data;
+  try {
+    const existingData = JSON.parse(results[0].data);
+
+    // Logic to handle obfuscated secrets:
+    // If client sends back a masked key (starts with 'sk-***'), keep the existing real key.
+    if (entityName === 'Connection' && data.apiKey && data.apiKey.startsWith('sk-***')) {
+      data.apiKey = existingData.apiKey;
     }
+
+    // Merge updates, but FORCE user_id to remain unchanged/correct
+    mergedData = { ...existingData, ...data, user_id: currentUser.id };
+  } catch (e) {
+    console.error("Failed to parse existing data:", e);
+    // Fallback: If corrupted, replace but ensure user_id is set
+    mergedData = { ...data, user_id: currentUser.id };
   }
 
   await env.DB.prepare(
@@ -220,13 +246,19 @@ async function handleUpdate(env, entityName, id, data) {
   return Response.json({ id, ...mergedData, updated_date: now });
 }
 
-async function handleDelete(env, entityName, id) {
-  await env.DB.prepare(
-    "DELETE FROM entities WHERE id = ? AND entity_name = ?"
+async function handleDelete(env, entityName, id, currentUser) {
+  // RLS: Allow delete only if user owns it
+  // We can just rely on the WHERE clause, if it doesn't match, nothing is deleted (idempotent success or 404?)
+  // For strictness, let's verify existence first or check deleted rows count (D1 wrapper details differ).
+  // Standard simple approach: Just run delete with extra WHERE.
+
+  const { meta } = await env.DB.prepare(
+    "DELETE FROM entities WHERE id = ? AND entity_name = ? AND json_extract(data, '$.user_id') = ?"
   )
-    .bind(id, entityName)
+    .bind(id, entityName, currentUser.id)
     .run();
 
+  // meta.changes might indicate if something was deleted, but 204 is fine regardless
   return new Response(null, { status: 204 });
 }
 

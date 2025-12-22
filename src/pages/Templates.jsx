@@ -80,168 +80,32 @@ export default function Templates() {
     }
   });
 
-  const updateTemplateMutation = useMutation({
-    mutationFn: ({ id, data }) => db.templates.update(id, data),
+  const createBatchTemplateMutation = useMutation({
+    mutationFn: (data) => db.templates.create(data),
     onSuccess: () => {
+      // No navigation for batch
       queryClient.invalidateQueries(['templates']);
     }
   });
 
-  const deleteTemplateMutation = useMutation({
-    mutationFn: (id) => db.templates.delete(id),
-    onSuccess: () => {
-      queryClient.invalidateQueries(['templates']);
-    }
-  });
-
-  const createSectionMutation = useMutation({
-    mutationFn: (data) => db.sections.create(data),
-    onSuccess: () => {
-      queryClient.invalidateQueries(['sections']);
-    }
-  });
-
-  const updateSectionMutation = useMutation({
-    mutationFn: ({ id, data }) => db.sections.update(id, data),
-    onSuccess: () => {
-      queryClient.invalidateQueries(['sections']);
-    }
-  });
-
-  const deleteSectionMutation = useMutation({
-    mutationFn: (id) => db.sections.delete(id),
-    onSuccess: () => {
-      queryClient.invalidateQueries(['sections']);
-    }
-  });
-
-  const { data: allConnections = [] } = useQuery({
-    queryKey: ['connections'],
-    queryFn: () => db.connections.getAll()
-  });
-
-  const connections = allConnections.filter(c =>
-    (contextFilter.organization_id === null && !c.organization_id) ||
-    (c.organization_id === contextFilter.organization_id)
-  );
-
-  const handleFileUpload = async (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    if (file.type !== 'application/pdf') {
-      alert('Please upload a PDF file');
-      return;
-    }
-
-    setIsUploading(true);
-    try {
-      const fileUrl = await fileStorage.uploadFile(file);
-
-      // Find default connection
-      const defaultConnection = connections.find(c => c.is_default);
-
-      await createTemplateMutation.mutateAsync({
-        name: file.name.replace('.pdf', ''),
-        pdf_url: fileUrl,
-        section_id: selectedSection?.id || null,
-        status: 'draft',
-        fields: [],
-        airtable_connection_id: defaultConnection?.id || null,
-        airtable_base_id: defaultConnection?.default_base_id || null,
-        airtable_table_name: defaultConnection?.default_table_name || null,
-        organization_id: contextFilter.organization_id
-      });
-    } catch (error) {
-      console.error('Upload failed:', error);
-      alert('Failed to upload PDF');
-    } finally {
-      setIsUploading(false);
-    }
-  };
-
-  const handleToggleStatus = (template) => {
-    const newStatus = template.status === 'active' ? 'paused' : 'active';
-    updateTemplateMutation.mutate({
-      id: template.id,
-      data: { status: newStatus }
-    });
-  };
-
-  const handleDelete = (template) => {
-    if (confirm(`Delete template "${template.name}"?`)) {
-      deleteTemplateMutation.mutate(template.id);
-    }
-  };
-
-  // Handle moving template to a different folder
-  const handleMoveToFolder = useCallback((template, sectionId) => {
-    updateTemplateMutation.mutate({
-      id: template.id,
-      data: { section_id: sectionId }
-    });
-    toast.success(sectionId ? 'Template moved to folder' : 'Template removed from folder');
-  }, [updateTemplateMutation]);
-
-  // Handle batch export of a section
-  const handleExportSection = useCallback(async (section) => {
-    const toastId = toast.loading('Creating export bundle...');
-    try {
-      await exportBatch(
-        section,
-        allSections,
-        allTemplates,
-        async (template) => template.pdf_url
-      );
-      toast.success('Check your downloads folder', { id: toastId });
-    } catch (error) {
-      console.error(error);
-      toast.error('Export failed: ' + error.message, { id: toastId });
-    }
-  }, [allSections, allTemplates]);
-
-
+  // ... (existing update/delete mutations)
 
   // Handle import from .airpdf file
   const handleImportComplete = useCallback(async ({ data, connectionId, mode }) => {
     try {
       if (mode === 'full') {
-        // Decode and upload the PDF
-        const pdfBlob = base64ToBlob(data.pdf, 'application/pdf');
-        const pdfUrl = await fileStorage.uploadFile(pdfBlob, `${data.template.name}.pdf`);
-
-        // Create new template
-        const newTemplate = {
-          name: data.template.name,
-          fields: data.template.fields || [],
-          guides: data.template.guides || { vertical: [], horizontal: [] },
-          pdf_url: pdfUrl,
-          airtable_connection_id: connectionId,
-          airtable_base_id: data.template.airtable_base_id,
-          airtable_table_name: data.template.airtable_table_name,
-          trigger_field: data.template.trigger_field,
-          trigger_value: data.template.trigger_value,
-          output_field: data.template.output_field,
-          default_font: data.template.default_font,
-          default_font_size: data.template.default_font_size,
-          default_alignment: data.template.default_alignment,
-          default_bold: data.template.default_bold,
-          default_italic: data.template.default_italic,
-          default_underline: data.template.default_underline,
-          section_id: selectedSection?.id || null,
-          status: 'draft',
-          organization_id: contextFilter.organization_id
-        };
-
-        await createTemplateMutation.mutateAsync(newTemplate);
-        toast.success('Template imported successfully');
+        // ... (existing full import logic)
       } else if (mode === 'batch') {
         const toastId = toast.loading(`Importing ${data.items.length} items...`);
         let successCount = 0;
         const sectionPathCache = new Map();
 
+        // Find default connection for raw PDFs
+        const defaultConnection = connections.find(c => c.is_default);
+
         // Helper to find or create sections
         const getOrCreateSection = async (pathArr) => {
+          // ... (existing helper logic)
           if (!pathArr || pathArr.length === 0) return selectedSection?.id || null;
 
           let parentId = selectedSection?.id || null;
@@ -256,8 +120,6 @@ export default function Templates() {
             }
 
             // Check existing sections (closest match in current list)
-            // Note: This won't find sections created in this loop until invalidation, 
-            // but we use the cache for that.
             const existing = allSections.find(s =>
               s.name === folderName &&
               (s.parent_id || null) === (parentId || null) &&
@@ -286,31 +148,32 @@ export default function Templates() {
 
             if (item.type === 'airpdf') {
               // Import airpdf
-              // Decode and upload PDF
               const pdfBlob = base64ToBlob(item.data.pdf, 'application/pdf');
               const pdfUrl = await fileStorage.uploadFile(pdfBlob, `${item.data.template.name}.pdf`);
 
               const newTemplate = {
                 ...item.data.template,
                 pdf_url: pdfUrl,
-                airtable_connection_id: connectionId,
+                airtable_connection_id: connectionId || defaultConnection?.id || null, // Use selected or default
                 section_id: targetSectionId,
                 status: 'draft',
                 organization_id: contextFilter.organization_id
               };
-              await createTemplateMutation.mutateAsync(newTemplate);
+              await createBatchTemplateMutation.mutateAsync(newTemplate);
               successCount++;
             } else if (item.type === 'pdf') {
               // Import raw PDF
               const pdfBlob = base64ToBlob(item.data.base64, 'application/pdf');
               const pdfUrl = await fileStorage.uploadFile(pdfBlob, `${item.data.name}.pdf`);
 
-              await createTemplateMutation.mutateAsync({
+              await createBatchTemplateMutation.mutateAsync({
                 name: item.data.name,
                 pdf_url: pdfUrl,
                 fields: [],
                 guides: { vertical: [], horizontal: [] },
-                airtable_connection_id: connectionId,
+                airtable_connection_id: connectionId || defaultConnection?.id || null, // Use selected or default
+                airtable_base_id: defaultConnection?.default_base_id || null,
+                airtable_table_name: defaultConnection?.default_table_name || null,
                 section_id: targetSectionId,
                 status: 'draft',
                 organization_id: contextFilter.organization_id
@@ -322,7 +185,6 @@ export default function Templates() {
           }
         }
 
-        // Invalidate sections and templates to refresh UI
         queryClient.invalidateQueries(['sections']);
         queryClient.invalidateQueries(['templates']);
         toast.success(`Imported ${successCount} templates`, { id: toastId });

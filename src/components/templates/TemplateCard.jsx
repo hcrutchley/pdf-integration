@@ -93,7 +93,7 @@ export default function TemplateCard({
                 <MoreVertical className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
+            <DropdownMenuContent align="end" className="max-h-[300px] overflow-y-auto">
               <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onEdit(template, true); }}>
                 <Edit2 className="h-4 w-4 mr-2" />
                 Visual Editor
