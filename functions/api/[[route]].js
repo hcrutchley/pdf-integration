@@ -62,6 +62,7 @@ export async function onRequest(context) {
     // Auth Management
     if (path === "/api/auth/me") return handleMe(currentUser);
     if (path === "/api/auth/logout") return handleLogout(context, request);
+    if (path === "/api/organizations/join" && method === "POST") return handleJoinOrg(context, currentUser);
 
     // Entity Management
     // Matches /api/entities/:entity
@@ -224,6 +225,39 @@ async function handleLogout(context, request) {
 
 function handleMe(user) {
     return jsonResponse(user);
+}
+
+async function handleJoinOrg(context, user) {
+    const { env, request } = context;
+    const { code } = await request.json();
+
+    if (!code) return errorResponse("Join code required", 400);
+
+    // Find organization by join code (BYPASS RLS - system lookup)
+    const { results } = await env.DB.prepare(
+        "SELECT id, data FROM entities WHERE entity_name = 'Organization' AND json_extract(data, '$.join_code') = ?"
+    ).bind(code.toUpperCase()).all();
+
+    if (!results.length) return errorResponse("Invalid join code", 404);
+
+    const row = results[0];
+    const orgData = JSON.parse(row.data);
+
+    // Check if member already
+    if (orgData.owner_email === user.email || (orgData.member_emails && orgData.member_emails.includes(user.email))) {
+        return errorResponse("Already a member", 409);
+    }
+
+    // Add user to members
+    const updatedMembers = [...(orgData.member_emails || []), user.email];
+    const updatedOrgData = { ...orgData, member_emails: updatedMembers };
+    const now = new Date().toISOString();
+
+    await env.DB.prepare(
+        "UPDATE entities SET data = ?, updated_date = ? WHERE id = ?"
+    ).bind(JSON.stringify(updatedOrgData), now, row.id).run();
+
+    return jsonResponse({ id: row.id, ...updatedOrgData, updated_date: now });
 }
 
 async function hashPassword(password) {

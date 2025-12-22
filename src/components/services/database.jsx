@@ -156,5 +156,11 @@ export const db = {
     async delete(id) {
       return await db.delete("Organization", id);
     },
+    async join(code) {
+      return apiRequest("/api/organizations/join", {
+        method: "POST",
+        body: { code },
+      });
+    },
   },
 };

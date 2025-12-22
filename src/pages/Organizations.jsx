@@ -60,16 +60,7 @@ export default function Organizations() {
 
   const joinOrgMutation = useMutation({
     mutationFn: async (code) => {
-      const orgs = await db.organizations.getAll();
-      const org = orgs.find(o => o.join_code === code.toUpperCase());
-      if (!org) throw new Error('Invalid join code');
-      if (org.owner_email === user.email || (org.member_emails && org.member_emails.includes(user.email))) {
-        throw new Error('Already a member');
-      }
-
-      const updatedMembers = [...(org.member_emails || []), user.email];
-      await db.organizations.update(org.id, { member_emails: updatedMembers });
-      return org;
+      return await db.organizations.join(code);
     },
     onSuccess: () => {
       queryClient.invalidateQueries(['organizations']);
