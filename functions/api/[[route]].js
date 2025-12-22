@@ -231,8 +231,6 @@ async function handleJoinOrg(context, user) {
     const { env, request } = context;
     const { code } = await request.json();
 
-    console.log('[JOIN DEBUG] Received code:', code);
-
     if (!code) return errorResponse("Join code required", 400);
 
     // Find organization by join code (BYPASS RLS - system lookup)
@@ -240,11 +238,7 @@ async function handleJoinOrg(context, user) {
         "SELECT id, data FROM entities WHERE entity_name = 'Organization' AND json_extract(data, '$.join_code') = ?"
     ).bind(code.toUpperCase().trim()).all();
 
-    console.log('[JOIN DEBUG] Lookup results count:', results.length);
-    if (!results.length) {
-        console.log('[JOIN DEBUG] No org found for code:', code.toUpperCase().trim());
-        return errorResponse("Invalid join code", 404);
-    }
+    if (!results.length) return errorResponse("Invalid join code", 404);
 
     const row = results[0];
     const orgData = JSON.parse(row.data);
@@ -278,12 +272,46 @@ async function hashPassword(password) {
 // ==========================================
 
 async function secureList(env, entityName, url, user) {
-    const orgIds = await getOrgIds(env, user);
     const limit = parseInt(url.searchParams.get("limit") || "100", 10);
     const sort = url.searchParams.get("sort") || "-created_date";
     const whereStr = url.searchParams.get("where");
 
-    // RLS Query Building
+    // RLS: Organization Listing
+    if (entityName === 'Organization') {
+        let query = `
+            SELECT id, entity_name, data, created_date, updated_date 
+            FROM entities 
+            WHERE entity_name = 'Organization' 
+            AND (
+                json_extract(data, '$.owner_email') = ?
+                OR json_extract(data, '$.member_emails') LIKE ?
+            )
+        `;
+        const bindings = [user.email, `%${user.email}%`];
+
+        const { results } = await env.DB.prepare(query).bind(...bindings).all();
+
+        // Post-processing same as below...
+        // ... (reuse logic or duplicate for now for safety)
+        let items = results.map(row => {
+            const data = JSON.parse(row.data);
+            return { id: row.id, ...data, created_date: row.created_date, updated_date: row.updated_date };
+        });
+
+        if (whereStr) {
+            const where = JSON.parse(whereStr);
+            items = items.filter(item => Object.entries(where).every(([k, v]) => item[k] === v));
+        }
+
+        const field = sort.replace(/^-/, "");
+        const dir = sort.startsWith("-") ? -1 : 1;
+        items.sort((a, b) => (a[field] > b[field] ? dir : (a[field] < b[field] ? -dir : 0)));
+
+        return jsonResponse(items.slice(0, limit));
+    }
+
+    // RLS: Standard Entity Listing
+    const orgIds = await getOrgIds(env, user);
     let query = `SELECT id, entity_name, data, created_date, updated_date FROM entities WHERE entity_name = ? AND (json_extract(data, '$.user_id') = ?`;
     const bindings = [entityName, user.id];
 
@@ -320,8 +348,27 @@ async function secureList(env, entityName, url, user) {
 }
 
 async function secureGet(env, entityName, id, user) {
-    const orgIds = await getOrgIds(env, user);
+    // RLS: Organization Get
+    if (entityName === 'Organization') {
+        const { results } = await env.DB.prepare(`
+            SELECT id, data, created_date, updated_date 
+            FROM entities 
+            WHERE id = ? AND entity_name = 'Organization' 
+            AND (
+                json_extract(data, '$.owner_email') = ?
+                OR json_extract(data, '$.member_emails') LIKE ?
+            )
+        `).bind(id, user.email, `%${user.email}%`).all();
 
+        if (!results.length) return errorResponse("Not found", 404);
+
+        const row = results[0];
+        const data = JSON.parse(row.data);
+        return jsonResponse({ id: row.id, ...data, created_date: row.created_date, updated_date: row.updated_date });
+    }
+
+    // RLS: Standard Entity Get
+    const orgIds = await getOrgIds(env, user);
     let query = `SELECT id, data, created_date, updated_date FROM entities WHERE id = ? AND entity_name = ? AND (json_extract(data, '$.user_id') = ?`;
     const bindings = [id, entityName, user.id];
 
