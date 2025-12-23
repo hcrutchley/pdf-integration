@@ -11,13 +11,18 @@ export default function PDFCanvas({ pdfUrl, page = 1, scale = 1, onLoad, onLoadS
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
+  const [pdfDoc, setPdfDoc] = useState(null);
+
+  // Effect 1: Load PDF Document (Only when URL changes)
   useEffect(() => {
     let cancelled = false;
+    let loadingTask = null;
 
     const loadPDF = async () => {
       try {
         setLoading(true);
         setError(null);
+        setPdfDoc(null);
 
         // For older templates that still store a direct R2 public URL,
         // rewrite it to our same-origin proxy to avoid CORS issues.
@@ -33,21 +38,52 @@ export default function PDFCanvas({ pdfUrl, page = 1, scale = 1, onLoad, onLoadS
           // If pdfUrl is not a valid URL, just use it as-is.
         }
 
-        const pdf = await pdfjsLib.getDocument(effectiveUrl).promise;
-        
+        loadingTask = pdfjsLib.getDocument(effectiveUrl);
+        const pdf = await loadingTask.promise;
+
         if (cancelled) return;
-        
+
+        setPdfDoc(pdf);
         if (onLoadSuccess) {
           onLoadSuccess(pdf);
         }
+      } catch (err) {
+        if (!cancelled) {
+          console.error('PDF loading error:', err);
+          setError(err.message);
+          setLoading(false);
+        }
+      }
+    };
 
-        const pdfPage = await pdf.getPage(page);
-        
+    if (pdfUrl) {
+      loadPDF();
+    }
+
+    return () => {
+      cancelled = true;
+      if (loadingTask) {
+        loadingTask.destroy().catch(() => { });
+      }
+    };
+  }, [pdfUrl]);
+
+  // Effect 2: Render Page (When Doc, Page, or Scale changes)
+  useEffect(() => {
+    let cancelled = false;
+
+    const renderPage = async () => {
+      if (!pdfDoc) return;
+
+      try {
+        setLoading(true);
+        const pdfPage = await pdfDoc.getPage(page);
+
         if (cancelled) return;
 
         const viewport = pdfPage.getViewport({ scale });
         const canvas = canvasRef.current;
-        
+
         if (!canvas) return;
 
         const context = canvas.getContext('2d');
@@ -67,21 +103,19 @@ export default function PDFCanvas({ pdfUrl, page = 1, scale = 1, onLoad, onLoadS
         }
       } catch (err) {
         if (!cancelled) {
-          console.error('PDF loading error:', err);
+          console.error('PDF rendering error:', err);
           setError(err.message);
           setLoading(false);
         }
       }
     };
 
-    if (pdfUrl) {
-      loadPDF();
-    }
+    renderPage();
 
     return () => {
       cancelled = true;
     };
-  }, [pdfUrl, page, scale]);
+  }, [pdfDoc, page, scale]);
 
   if (error) {
     return (
