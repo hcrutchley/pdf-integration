@@ -95,6 +95,8 @@ export default function PDFViewer({
   const draggedFieldsCache = useRef({});
   const justFinishedBoxSelect = useRef(false);
   const arrowKeyHoldRef = useRef({ key: null, count: 0, interval: null });
+  // Guard against prop syncing interrupting drag
+  const isInteractingRef = useRef(false);
 
   // Save to history
   const saveToHistory = useCallback(() => {
@@ -113,7 +115,7 @@ export default function PDFViewer({
   }, [localFields, localGuides, historyIndex]);
 
   useEffect(() => {
-    if (dragging || resizing) {
+    if (dragging || resizing || isInteractingRef.current) {
       // During drag/resize, don't sync from props
       return;
     }
@@ -342,6 +344,7 @@ export default function PDFViewer({
         precisionBaseY: null,
         mouseDownPos
       });
+      isInteractingRef.current = true;
     } else if (action === 'resize') {
       setResizing({
         fieldId: field.id,
@@ -353,6 +356,7 @@ export default function PDFViewer({
         initialWidth: field.width,
         initialHeight: field.height
       });
+      isInteractingRef.current = true;
     }
   };
 
@@ -747,6 +751,7 @@ export default function PDFViewer({
         initialFieldPositions.current = {};
         madeChanges = true;
       }
+      isInteractingRef.current = false;
     }
 
     if (draggingGuide) {
