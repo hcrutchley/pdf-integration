@@ -160,9 +160,22 @@ export default function PDFViewer({
         setScale(Math.min((width - 40) / pdfWidth, 1.2));
       }
     };
+
+    // Initial size update
     updateSize();
-    window.addEventListener('resize', updateSize);
-    return () => window.removeEventListener('resize', updateSize);
+
+    // Use ResizeObserver to detect container size changes (e.g. sidebar resize)
+    const resizeObserver = new ResizeObserver(() => {
+      updateSize();
+    });
+
+    if (containerRef.current) {
+      resizeObserver.observe(containerRef.current);
+    }
+
+    return () => {
+      resizeObserver.disconnect();
+    };
   }, []);
 
   // Zoom levels for snapping: 25% to 300%

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -47,6 +47,7 @@ export default function DesignView({
     // Resizable sidebar logic
     const [sidebarWidth, setSidebarWidth] = useState(320);
     const [isResizing, setIsResizing] = useState(false);
+    const containerRef = useRef(null);
 
     const startResizing = useCallback((mouseDownEvent) => {
         mouseDownEvent.preventDefault();
@@ -58,8 +59,12 @@ export default function DesignView({
     }, []);
 
     const resize = useCallback((mouseMoveEvent) => {
-        if (isResizing) {
-            const newWidth = document.body.clientWidth - mouseMoveEvent.clientX;
+        if (isResizing && containerRef.current) {
+            const containerRect = containerRef.current.getBoundingClientRect();
+            // Calculate width based on distance from right edge of container
+            // This works regardless of left sidebar or window size
+            const newWidth = containerRect.right - mouseMoveEvent.clientX;
+
             // Min/Max constraints
             if (newWidth > 200 && newWidth < 800) {
                 setSidebarWidth(newWidth);
@@ -119,9 +124,9 @@ export default function DesignView({
     }
 
     return (
-        <div className="flex w-full h-full overflow-hidden">
+        <div className="flex w-full h-full overflow-hidden" ref={containerRef}>
             {/* Main Canvas Area */}
-            <div className="flex-1 h-full relative">
+            <div className="flex-1 h-full relative min-w-0">
                 <PDFViewer
                     pdfUrl={template.pdf_url}
                     fields={template.fields || []}
