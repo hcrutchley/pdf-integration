@@ -38,7 +38,6 @@ export default function DesignView({
     onDetectFields,
     isDetecting,
     setupPollingNow,
-    setupPollingNow,
     setSetupPollingNow,
 }) {
     const navigate = useNavigate();
