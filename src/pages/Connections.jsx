@@ -230,7 +230,10 @@ export default function Connections() {
             </p>
           </div>
           <Button
-            onClick={() => setIsCreateOpen(true)}
+            onClick={() => {
+              resetForm();
+              setIsDialogOpen(true);
+            }}
             className="bg-teal-600 hover:bg-teal-700"
           >
             <Plus className="h-4 w-4 mr-2" />
@@ -250,7 +253,10 @@ export default function Connections() {
                 Add your first Airtable connection to get started
               </p>
               <Button
-                onClick={() => setIsCreateOpen(true)}
+                onClick={() => {
+                  resetForm();
+                  setIsDialogOpen(true);
+                }}
                 className="bg-teal-600 hover:bg-teal-700"
               >
                 <Plus className="h-4 w-4 mr-2" />
@@ -319,7 +325,10 @@ export default function Connections() {
         )}
 
         {/* Create/Edit Dialog */}
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <Dialog open={isDialogOpen} onOpenChange={(open) => {
+          setIsDialogOpen(open);
+          if (!open) resetForm();
+        }}>
           <DialogContent className="sm:max-w-md">
             <DialogHeader>
               <DialogTitle>{editingConnection ? 'Edit Connection' : 'Add Airtable Connection'}</DialogTitle>
