@@ -160,9 +160,24 @@ export default function PDFViewer({
         setScale(Math.min((width - 40) / pdfWidth, 1.2));
       }
     };
+
+    // Initial size update
     updateSize();
-    window.addEventListener('resize', updateSize);
-    return () => window.removeEventListener('resize', updateSize);
+
+    // Use ResizeObserver for robust size detection
+    const resizeObserver = new ResizeObserver((entries) => {
+      // Debounce slightly or just call updateSize
+      // RequestAnimationFrame avoids loop limit errors
+      requestAnimationFrame(() => updateSize());
+    });
+
+    if (containerRef.current) {
+      resizeObserver.observe(containerRef.current);
+    }
+
+    return () => {
+      resizeObserver.disconnect();
+    };
   }, []);
 
   // Zoom levels for snapping: 25% to 300%
@@ -261,6 +276,7 @@ export default function PDFViewer({
 
   const handleMouseDown = (e, field, action, corner = null) => {
     e.stopPropagation();
+    e.preventDefault(); // Prevent text selection/scroll which can kill drag events
     if (mode !== 'field') return;
 
     // Track mouse position to detect click vs drag
