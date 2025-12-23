@@ -38,12 +38,47 @@ export default function DesignView({
     onDetectFields,
     isDetecting,
     setupPollingNow,
+    setupPollingNow,
     setSetupPollingNow,
-    lastActiveStyles // New prop for smart defaults
 }) {
     const navigate = useNavigate();
     const [quickAddOpen, setQuickAddOpen] = useState(false);
     const [panelTab, setPanelTab] = useState('properties'); // 'properties' | 'data' | 'automation'
+
+    // Smart Defaults: Track properties of the last selected field
+    const [lastActiveStyles, setLastActiveStyles] = useState(null);
+
+    // Initialize defaults from template when loaded
+    useEffect(() => {
+        if (template && !lastActiveStyles) {
+            setLastActiveStyles({
+                font: template.default_font,
+                font_size: template.default_font_size,
+                alignment: template.default_alignment,
+                bold: template.default_bold,
+                italic: template.default_italic,
+                underline: template.default_underline,
+                width: 200, // Standard default
+                height: 30
+            });
+        }
+    }, [template, lastActiveStyles]);
+
+    // Update smart defaults when selection changes
+    useEffect(() => {
+        if (selectedField) {
+            setLastActiveStyles({
+                font: selectedField.font,
+                font_size: selectedField.font_size,
+                alignment: selectedField.alignment,
+                bold: selectedField.bold,
+                italic: selectedField.italic,
+                underline: selectedField.underline,
+                width: selectedField.width,
+                height: selectedField.height
+            });
+        }
+    }, [selectedField]);
 
     // Resizable sidebar logic
     const [sidebarWidth, setSidebarWidth] = useState(320);
