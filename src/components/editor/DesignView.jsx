@@ -39,6 +39,7 @@ export default function DesignView({
     isDetecting,
     setupPollingNow,
     setSetupPollingNow,
+    lastActiveStyles // New prop for smart defaults
 }) {
     const navigate = useNavigate();
     const [quickAddOpen, setQuickAddOpen] = useState(false);
@@ -374,7 +375,7 @@ export default function DesignView({
                 onClose={() => setQuickAddOpen(false)}
                 airtableFields={airtableFields}
                 onFieldSelect={handleQuickFieldSelect}
-                defaultStyles={{
+                defaultStyles={lastActiveStyles || {
                     font: template.default_font,
                     font_size: template.default_font_size,
                     alignment: template.default_alignment,

@@ -38,6 +38,41 @@ export default function TemplateEditor() {
   const [isSyncing, setIsSyncing] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
 
+  // Smart Defaults: Track properties of the last selected field
+  const [lastActiveStyles, setLastActiveStyles] = useState(null);
+
+  // Initialize defaults from template when loaded
+  useEffect(() => {
+    if (template && !lastActiveStyles) {
+      setLastActiveStyles({
+        font: template.default_font,
+        font_size: template.default_font_size,
+        alignment: template.default_alignment,
+        bold: template.default_bold,
+        italic: template.default_italic,
+        underline: template.default_underline,
+        width: 200, // Standard default
+        height: 30
+      });
+    }
+  }, [template, lastActiveStyles]);
+
+  // Update smart defaults when selection changes
+  useEffect(() => {
+    if (selectedField) {
+      setLastActiveStyles({
+        font: selectedField.font,
+        font_size: selectedField.font_size,
+        alignment: selectedField.alignment,
+        bold: selectedField.bold,
+        italic: selectedField.italic,
+        underline: selectedField.underline,
+        width: selectedField.width,
+        height: selectedField.height
+      });
+    }
+  }, [selectedField]);
+
 
   // Dirty flag for tracking unsaved changes
   const isDirtyRef = useRef(false);
@@ -427,6 +462,7 @@ export default function TemplateEditor() {
         isDetecting={isDetecting}
         setupPollingNow={setupPollingNow}
         setSetupPollingNow={setSetupPollingNow}
+        lastActiveStyles={lastActiveStyles}
       />
     </EditorLayout>
   );
