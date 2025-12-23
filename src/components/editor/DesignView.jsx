@@ -44,6 +44,38 @@ export default function DesignView({
     const [quickAddOpen, setQuickAddOpen] = useState(false);
     const [panelTab, setPanelTab] = useState('properties'); // 'properties' | 'data' | 'automation'
 
+    // Resizable sidebar logic
+    const [sidebarWidth, setSidebarWidth] = useState(320);
+    const [isResizing, setIsResizing] = useState(false);
+
+    const startResizing = useCallback((mouseDownEvent) => {
+        mouseDownEvent.preventDefault();
+        setIsResizing(true);
+    }, []);
+
+    const stopResizing = useCallback(() => {
+        setIsResizing(false);
+    }, []);
+
+    const resize = useCallback((mouseMoveEvent) => {
+        if (isResizing) {
+            const newWidth = document.body.clientWidth - mouseMoveEvent.clientX;
+            // Min/Max constraints
+            if (newWidth > 200 && newWidth < 800) {
+                setSidebarWidth(newWidth);
+            }
+        }
+    }, [isResizing]);
+
+    useEffect(() => {
+        window.addEventListener('mousemove', resize);
+        window.addEventListener('mouseup', stopResizing);
+        return () => {
+            window.removeEventListener('mousemove', resize);
+            window.removeEventListener('mouseup', stopResizing);
+        };
+    }, [resize, stopResizing]);
+
     // Auto-switch to properties when field is selected
     useEffect(() => {
         if (selectedField) {
@@ -123,8 +155,17 @@ export default function DesignView({
                 </div>
             </div>
 
+            {/* Drag Handle */}
+            <div
+                className={cn(
+                    "w-1 h-full cursor-col-resize hover:bg-teal-500 active:bg-teal-600 transition-colors z-30",
+                    isResizing && "bg-teal-600"
+                )}
+                onMouseDown={startResizing}
+            />
+
             {/* Right Panel with Tabs */}
-            <div className="w-80 flex-shrink-0 bg-white dark:bg-slate-800 border-l border-slate-200 dark:border-slate-700 shadow-xl z-20 flex flex-col h-full overflow-hidden">
+            <div style={{ width: sidebarWidth }} className="flex-shrink-0 bg-white dark:bg-slate-800 border-l border-slate-200 dark:border-slate-700 shadow-xl z-20 flex flex-col h-full overflow-hidden">
 
                 {/* Panel Tab Navigation */}
                 <div className="flex border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50">
