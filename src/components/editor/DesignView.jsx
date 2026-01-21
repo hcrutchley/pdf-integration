@@ -6,6 +6,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Database, Zap, Type, Sparkles, Layers, Settings } from 'lucide-react';
 import PDFViewer from './PDFViewer';
 import FieldPropertiesPanel from './FieldPropertiesPanel';
+import BatchFormatPanel from './BatchFormatPanel';
 import QuickFieldDialog from './QuickFieldDialog';
 import SearchableSelect from '../ui/SearchableSelect';
 import { cn } from '@/lib/utils';
@@ -43,6 +44,14 @@ export default function DesignView({
     const navigate = useNavigate();
     const [quickAddOpen, setQuickAddOpen] = useState(false);
     const [panelTab, setPanelTab] = useState('properties'); // 'properties' | 'data' | 'automation'
+    const [selectedFieldIds, setSelectedFieldIds] = useState([]);
+
+    // Handle batch updates for multiple selected fields
+    const handleBatchUpdate = useCallback((fieldIds, updates) => {
+        fieldIds.forEach(id => {
+            onUpdateField(id, updates);
+        });
+    }, [onUpdateField]);
 
     // Smart Defaults: Track properties of the last selected field
     const [lastActiveStyles, setLastActiveStyles] = useState(null);
@@ -173,6 +182,7 @@ export default function DesignView({
                         const field = template.fields?.find(f => f.id === fieldId);
                         setSelectedField(field);
                     }}
+                    onSelectedFieldsChange={setSelectedFieldIds}
                     selectedFieldId={selectedField?.id}
                     defaultFont={template.default_font}
                     defaultFontSize={template.default_font_size}
@@ -253,7 +263,13 @@ export default function DesignView({
                     {/* Properties Tab */}
                     {panelTab === 'properties' && (
                         <>
-                            {selectedField ? (
+                            {selectedFieldIds.length > 1 ? (
+                                <BatchFormatPanel
+                                    selectedFields={selectedFieldIds}
+                                    fields={template.fields || []}
+                                    onBatchUpdate={handleBatchUpdate}
+                                />
+                            ) : selectedField ? (
                                 <FieldPropertiesPanel
                                     field={selectedField}
                                     onUpdate={onUpdateField}

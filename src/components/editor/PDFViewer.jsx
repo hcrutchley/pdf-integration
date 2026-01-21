@@ -48,6 +48,7 @@ export default function PDFViewer({
   onFieldDelete,
   onFieldAdd,
   onFieldSelect,
+  onSelectedFieldsChange,
   selectedFieldId,
   defaultFont = 'Arial',
   defaultFontSize = 12,
@@ -153,6 +154,13 @@ export default function PDFViewer({
       onGuidesChange(guides);
     }
   }, [guides]);
+
+  // Notify parent when selected fields change
+  useEffect(() => {
+    if (onSelectedFieldsChange) {
+      onSelectedFieldsChange(selectedFields);
+    }
+  }, [selectedFields, onSelectedFieldsChange]);
 
   useEffect(() => {
     const updateSize = () => {
