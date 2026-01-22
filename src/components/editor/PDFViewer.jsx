@@ -631,6 +631,26 @@ export default function PDFViewer({
           return { ...f, ...updates };
         }));
       } else if (draggingGuide) {
+        // Helper to get page guides from the structure (handles both formats)
+        const getPageGuides = (guidesObj) => {
+          if (guidesObj && guidesObj.vertical && Array.isArray(guidesObj.vertical)) {
+            // Old flat format
+            return guidesObj;
+          }
+          // Per-page format
+          return guidesObj[currentPage] || { vertical: [], horizontal: [] };
+        };
+
+        // Helper to update guides in the structure
+        const updateGuidesInStructure = (guidesObj, newPageGuides) => {
+          if (guidesObj && guidesObj.vertical && Array.isArray(guidesObj.vertical)) {
+            // Old flat format - return newPageGuides directly
+            return newPageGuides;
+          }
+          // Per-page format
+          return { ...guidesObj, [currentPage]: newPageGuides };
+        };
+
         if (draggingGuide.multiSelect && selectedGuides.length > 1) {
           // Multi-guide drag: apply same delta to all selected guides
           const isPrecisionKey = e.getModifierState && e.getModifierState('CapsLock');
@@ -639,18 +659,22 @@ export default function PDFViewer({
           const deltaY = ((e.clientY - draggingGuide.startY) / scale) * speedMultiplier;
 
           setLocalGuides(prev => {
-            const newGuides = { ...prev };
+            const pageGuides = getPageGuides(prev);
+            const newPageGuides = {
+              vertical: [...pageGuides.vertical],
+              horizontal: [...pageGuides.horizontal]
+            };
             selectedGuides.forEach(g => {
               const initial = initialGuidePositions.current[`${g.type}-${g.index}`];
               if (initial !== undefined) {
                 if (g.type === 'vertical') {
-                  newGuides.vertical[g.index] = Math.max(0, Math.min(612, initial + deltaX));
+                  newPageGuides.vertical[g.index] = Math.max(0, Math.min(612, initial + deltaX));
                 } else {
-                  newGuides.horizontal[g.index] = Math.max(0, Math.min(792, initial + deltaY));
+                  newPageGuides.horizontal[g.index] = Math.max(0, Math.min(792, initial + deltaY));
                 }
               }
             });
-            return newGuides;
+            return updateGuidesInStructure(prev, newPageGuides);
           });
         } else {
           // Single guide drag
@@ -662,19 +686,21 @@ export default function PDFViewer({
             const deltaY = ((e.clientY - draggingGuide.startY) / scale) * speedMultiplier;
 
             setLocalGuides(prev => {
-              const newGuides = { ...prev };
-              // Fetch initial position from cache
+              const pageGuides = getPageGuides(prev);
+              const newPageGuides = {
+                vertical: [...pageGuides.vertical],
+                horizontal: [...pageGuides.horizontal]
+              };
               const initialKey = `${draggingGuide.type}-${draggingGuide.index}`;
-              // Fallback to current guide position if cache missed (shouldn't happen given onMouseDown logic)
               const initial = initialGuidePositions.current[initialKey] ??
-                (draggingGuide.type === 'vertical' ? prev.vertical[draggingGuide.index] : prev.horizontal[draggingGuide.index]);
+                (draggingGuide.type === 'vertical' ? pageGuides.vertical[draggingGuide.index] : pageGuides.horizontal[draggingGuide.index]);
 
               if (draggingGuide.type === 'vertical') {
-                newGuides.vertical[draggingGuide.index] = Math.max(0, Math.min(612, initial + deltaX));
+                newPageGuides.vertical[draggingGuide.index] = Math.max(0, Math.min(612, initial + deltaX));
               } else {
-                newGuides.horizontal[draggingGuide.index] = Math.max(0, Math.min(792, initial + deltaY));
+                newPageGuides.horizontal[draggingGuide.index] = Math.max(0, Math.min(792, initial + deltaY));
               }
-              return newGuides;
+              return updateGuidesInStructure(prev, newPageGuides);
             });
           } else {
             // Standard absolute tracking
@@ -684,13 +710,17 @@ export default function PDFViewer({
               : (e.clientY - rect.top) / scale;
 
             setLocalGuides(prev => {
-              const newGuides = { ...prev };
+              const pageGuides = getPageGuides(prev);
+              const newPageGuides = {
+                vertical: [...pageGuides.vertical],
+                horizontal: [...pageGuides.horizontal]
+              };
               if (draggingGuide.type === 'vertical') {
-                newGuides.vertical[draggingGuide.index] = Math.max(0, Math.min(612, pos));
+                newPageGuides.vertical[draggingGuide.index] = Math.max(0, Math.min(612, pos));
               } else {
-                newGuides.horizontal[draggingGuide.index] = Math.max(0, Math.min(792, pos));
+                newPageGuides.horizontal[draggingGuide.index] = Math.max(0, Math.min(792, pos));
               }
-              return newGuides;
+              return updateGuidesInStructure(prev, newPageGuides);
             });
           }
         }
