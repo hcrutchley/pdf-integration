@@ -335,6 +335,16 @@ export async function onRequestPost(context) {
                 startY = fieldBottom + (fieldHeight / 2) - (fontSize / 2) + PADDING_Y;
             }
 
+            // Parse color - convert hex to rgb values (0-1 range)
+            let textColor = rgb(0, 0, 0); // Default black
+            if (field.font_color && field.font_color.startsWith('#')) {
+                const hex = field.font_color.slice(1);
+                const r = parseInt(hex.substring(0, 2), 16) / 255;
+                const g = parseInt(hex.substring(2, 4), 16) / 255;
+                const b = parseInt(hex.substring(4, 6), 16) / 255;
+                textColor = rgb(r, g, b);
+            }
+
             // Draw each line
             for (let i = 0; i < linesToDraw.length; i++) {
                 const line = linesToDraw[i];
@@ -355,7 +365,7 @@ export async function onRequestPost(context) {
                     y: lineY,
                     size: fontSize,
                     font: font,
-                    color: rgb(0, 0, 0),
+                    color: textColor,
                 });
             }
         }

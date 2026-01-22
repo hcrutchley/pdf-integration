@@ -12,10 +12,10 @@ import {
 } from '@/components/ui/accordion';
 import AirtableFieldPicker from '../airtable/AirtableFieldPicker';
 
-export default function FieldPropertiesPanel({ 
-  field, 
-  onUpdate, 
-  airtableFields = [] 
+export default function FieldPropertiesPanel({
+  field,
+  onUpdate,
+  airtableFields = []
 }) {
   const [localField, setLocalField] = useState(field);
   const updateTimeoutRef = useRef(null);
@@ -27,7 +27,7 @@ export default function FieldPropertiesPanel({
   const handleLocalChange = (updates) => {
     const updatedField = { ...localField, ...updates };
     setLocalField(updatedField);
-    
+
     // Debounce the update
     if (updateTimeoutRef.current) {
       clearTimeout(updateTimeoutRef.current);
@@ -182,19 +182,36 @@ export default function FieldPropertiesPanel({
                     </select>
                   </div>
 
-                  <div>
-                    <Label className="text-xs text-slate-600 dark:text-slate-400">Font Size</Label>
-                    <Input
-                      type="number"
-                      value={localField?.font_size || 12}
-                      onChange={(e) => handleLocalChange({ font_size: parseFloat(e.target.value) })}
-                      min="6"
-                      max="72"
-                      className="h-8"
-                    />
-                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                      Range: 6-72 points
-                    </p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <Label className="text-xs text-slate-600 dark:text-slate-400">Font Size</Label>
+                      <Input
+                        type="number"
+                        value={localField?.font_size || 12}
+                        onChange={(e) => handleLocalChange({ font_size: parseFloat(e.target.value) })}
+                        min="6"
+                        max="72"
+                        className="h-8"
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-xs text-slate-600 dark:text-slate-400">Font Color</Label>
+                      <div className="flex gap-1">
+                        <Input
+                          type="color"
+                          value={localField?.font_color || '#000000'}
+                          onChange={(e) => handleImmediateChange({ font_color: e.target.value })}
+                          className="h-8 w-10 p-1 cursor-pointer"
+                        />
+                        <Input
+                          type="text"
+                          value={localField?.font_color || '#000000'}
+                          onChange={(e) => handleLocalChange({ font_color: e.target.value })}
+                          placeholder="#000000"
+                          className="h-8 flex-1 font-mono text-xs"
+                        />
+                      </div>
+                    </div>
                   </div>
                 </AccordionContent>
               </AccordionItem>
@@ -245,7 +262,7 @@ export default function FieldPropertiesPanel({
                       </Button>
                     </div>
                   </div>
-                  
+
                   <div>
                     <Label className="text-xs text-slate-600 dark:text-slate-400 mb-2 block">Vertical</Label>
                     <div className="flex gap-2">
