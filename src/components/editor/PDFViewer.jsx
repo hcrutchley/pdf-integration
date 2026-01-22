@@ -293,7 +293,7 @@ export default function PDFViewer({
   const handleMouseDown = (e, field, action, corner = null) => {
     e.stopPropagation();
     e.preventDefault(); // Prevent text selection/scroll which can kill drag events
-    if (mode !== 'field') return;
+    // Note: mode check removed - onMouseDown on field already sets mode to 'field'
 
     // Track mouse position to detect click vs drag
     const mouseDownPos = { x: e.clientX, y: e.clientY };
