@@ -162,23 +162,29 @@ export default function PDFViewer({
     }
   }, [selectedFields, onSelectedFieldsChange]);
 
+  const initialScaleSetRef = useRef(false);
+
   useEffect(() => {
     const updateSize = () => {
-      if (containerRef.current) {
+      if (containerRef.current && !initialScaleSetRef.current) {
         const { width } = containerRef.current.getBoundingClientRect();
         const pdfWidth = 612;
-        setScale(Math.min((width - 40) / pdfWidth, 1.2));
+        // Set initial scale to fit container, max 1.0 (100%) for first load
+        // User can zoom beyond this with controls
+        setScale(Math.min((width - 40) / pdfWidth, 1.0));
+        initialScaleSetRef.current = true;
       }
     };
 
     // Initial size update
     updateSize();
 
-    // Use ResizeObserver for robust size detection
+    // We no longer reset scale on resize - user zoom should be preserved
+    // Only observe for initial load
     const resizeObserver = new ResizeObserver((entries) => {
-      // Debounce slightly or just call updateSize
-      // RequestAnimationFrame avoids loop limit errors
-      requestAnimationFrame(() => updateSize());
+      if (!initialScaleSetRef.current) {
+        requestAnimationFrame(() => updateSize());
+      }
     });
 
     if (containerRef.current) {
