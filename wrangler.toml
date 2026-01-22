@@ -10,7 +10,3 @@ database_id = "0da91ea2-b60f-492f-8755-d6fbdc4a6852"
 [[r2_buckets]]
 binding = "FILES"               # used in code as env.FILES
 bucket_name = "pdf-files"
-
-[vars]
-# Set this in Cloudflare Dashboard > Settings > Environment Variables for production
-WEBHOOK_SECRET = "CHANGE_ME_IN_PRODUCTION"

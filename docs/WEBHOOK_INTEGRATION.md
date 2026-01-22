@@ -1,25 +1,32 @@
 # PDFit Webhook Integration Guide
 
-Generate PDFs via webhook from Airtable automations.
+Generate PDFs via webhook from Airtable automations using user-specific webhook URLs.
+
+## Creating a Webhook
+
+1. Go to **Settings** in PDFit
+2. Scroll to the **Webhooks** section
+3. Enter a name (e.g., "ReadyFund Production")
+4. Click **Create**
+5. Copy the unique webhook URL
+
+Each webhook gets a unique, unguessable token that identifies and authenticates the request.
+
+---
 
 ## Endpoint
 
+Your webhook URL will look like:
 ```
-POST https://your-app.pages.dev/api/webhook/generate-pdf
+https://your-app.pages.dev/api/webhook/wh_abc123...
 ```
-
-## Authentication
-
-Add header:
-```
-X-Webhook-Secret: your-secret-here
-```
-
-Set the secret in Cloudflare Dashboard → Settings → Environment Variables → `WEBHOOK_SECRET`
 
 ## Request
 
 ```json
+POST /api/webhook/wh_<token>
+Content-Type: application/json
+
 {
   "template_name": "Personal Info",
   "record_id": "recXXXXXXXX"
@@ -31,26 +38,22 @@ Set the secret in Cloudflare Dashboard → Settings → Environment Variables �
 | `template_name` | Yes | Template name as configured in PDFit |
 | `record_id` | Yes | Airtable record ID to fill data from |
 
-The webhook looks up everything else from the template config:
-- Field mappings
-- Airtable connection/API key
-- Base and table
-- Output attachment field
+Everything else (field mappings, connection, base, table, output field) comes from your template configuration.
 
 ---
 
-## Airtable Script
+## Airtable Script Example
 
 ```javascript
-// Airtable Automation - PDF Generation Trigger
+// Airtable Automation - PDF Generation
 // Trigger: When record is created
 // Input: recordId = Record ID
 
 let config = input.config();
 let recordId = config.recordId;
 
-const WEBHOOK_URL = 'https://your-app.pages.dev/api/webhook/generate-pdf';
-const WEBHOOK_SECRET = 'your-secret-here';
+// Your unique webhook URL from PDFit Settings
+const WEBHOOK_URL = 'https://your-app.pages.dev/api/webhook/wh_YOUR_TOKEN';
 
 let table = base.getTable('Customer Applications');
 let record = await table.selectRecordAsync(recordId);
@@ -58,7 +61,7 @@ let record = await table.selectRecordAsync(recordId);
 let applicantType = record.getCellValueAsString('Applicant Type');
 let purpose = record.getCellValueAsString('Purpose');
 
-// Determine which PDFs to generate
+// Determine which templates to generate
 let templates = [];
 if (applicantType === 'Individual' || applicantType === 'Care-of') {
     templates.push('Personal Info');
@@ -73,10 +76,7 @@ for (let templateName of templates) {
     
     let response = await fetch(WEBHOOK_URL, {
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'X-Webhook-Secret': WEBHOOK_SECRET
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
             template_name: templateName,
             record_id: recordId
@@ -125,11 +125,20 @@ Templates must be configured in PDFit with:
 
 ---
 
+## Security
+
+- Each webhook has a unique, unguessable token
+- Webhooks can only access templates owned by the same user/organization
+- Webhooks can be disabled/enabled at any time
+- Usage is tracked (count and last used timestamp)
+
+---
+
 ## Troubleshooting
 
 | Error | Solution |
 |-------|----------|
-| "Invalid webhook secret" | Check `X-Webhook-Secret` header matches `WEBHOOK_SECRET` env var |
+| "Webhook not found" | Check the URL is correct, webhook exists |
+| "Webhook is disabled" | Enable the webhook in Settings |
 | "Template not found" | Verify template name matches exactly (case-sensitive) |
 | "Connection not found" | Template needs Airtable connection configured |
-| "PDF template file not found" | Re-upload PDF in template editor |

@@ -171,4 +171,21 @@ export const db = {
       });
     },
   },
+
+  webhooks: {
+    async getAll() {
+      return await db.list("Webhook", "-created_date");
+    },
+    async create(data) {
+      // Generate unique token
+      const token = `wh_${crypto.randomUUID().replace(/-/g, '')}`;
+      return await db.create("Webhook", { ...data, token, enabled: true, usage_count: 0 });
+    },
+    async update(id, data) {
+      return await db.update("Webhook", id, data);
+    },
+    async delete(id) {
+      return await db.delete("Webhook", id);
+    },
+  },
 };

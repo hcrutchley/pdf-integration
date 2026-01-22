@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Settings as SettingsIcon, Play, Pause, Clock, Keyboard, Building2, Users } from 'lucide-react';
+import { Settings as SettingsIcon, Play, Pause, Clock, Keyboard, Building2, Users, Webhook, Plus, Trash2, Copy, Check, ExternalLink } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,6 +10,7 @@ import { db } from '../components/services/database';
 import ThemeToggle from '../components/common/ThemeToggle';
 import SearchableSelect from '../components/ui/SearchableSelect';
 import { useOrgContext } from '../components/context/OrgContext';
+import { toast } from 'sonner';
 
 const DEFAULT_SHORTCUTS = {
   gridFill: 'Ctrl+F',
@@ -65,6 +66,63 @@ export default function Settings() {
   const [defaultOrgId, setDefaultOrgId] = useState(
     localStorage.getItem('defaultOrgId') || ''
   );
+
+  // Webhook state
+  const [newWebhookName, setNewWebhookName] = useState('');
+  const [copiedToken, setCopiedToken] = useState(null);
+  const { getContextFilter } = useOrgContext();
+  const contextFilter = getContextFilter();
+
+  const { data: webhooks = [] } = useQuery({
+    queryKey: ['webhooks'],
+    queryFn: () => db.webhooks.getAll()
+  });
+
+  const userWebhooks = webhooks.filter(w =>
+    (contextFilter.organization_id === null && !w.organization_id) ||
+    (w.organization_id === contextFilter.organization_id)
+  );
+
+  const createWebhookMutation = useMutation({
+    mutationFn: (data) => db.webhooks.create(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries(['webhooks']);
+      setNewWebhookName('');
+      toast.success('Webhook created');
+    }
+  });
+
+  const deleteWebhookMutation = useMutation({
+    mutationFn: (id) => db.webhooks.delete(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries(['webhooks']);
+      toast.success('Webhook deleted');
+    }
+  });
+
+  const toggleWebhookMutation = useMutation({
+    mutationFn: ({ id, enabled }) => db.webhooks.update(id, { enabled }),
+    onSuccess: () => queryClient.invalidateQueries(['webhooks'])
+  });
+
+  const handleCreateWebhook = () => {
+    if (!newWebhookName.trim()) {
+      toast.error('Please enter a webhook name');
+      return;
+    }
+    createWebhookMutation.mutate({
+      name: newWebhookName.trim(),
+      organization_id: contextFilter.organization_id
+    });
+  };
+
+  const handleCopyWebhookUrl = (webhook) => {
+    const url = `${window.location.origin}/api/webhook/${webhook.token}`;
+    navigator.clipboard.writeText(url);
+    setCopiedToken(webhook.id);
+    toast.success('Webhook URL copied');
+    setTimeout(() => setCopiedToken(null), 2000);
+  };
 
   React.useEffect(() => {
     const saved = localStorage.getItem('pdfEditorShortcuts');
@@ -327,9 +385,124 @@ export default function Settings() {
                   <li>Polling only runs while the app is open in your browser</li>
                   <li>Checks all active templates for records matching trigger conditions</li>
                   <li>Automatically generates PDFs and uploads to Airtable</li>
-                  <li>For 24/7 background processing, backend functions would be needed</li>
+                  <li>For 24/7 background processing, use webhooks below</li>
                 </ul>
               </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Webhooks */}
+        <Card className="bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700">
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <Webhook className="h-5 w-5 text-teal-600" />
+              <CardTitle className="text-slate-900 dark:text-slate-100">
+                Webhooks
+              </CardTitle>
+            </div>
+            <CardDescription>
+              Create unique webhook URLs to trigger PDF generation from Airtable automations
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {/* Create new webhook */}
+            <div className="flex gap-2">
+              <Input
+                placeholder="Webhook name (e.g., ReadyFund Production)"
+                value={newWebhookName}
+                onChange={(e) => setNewWebhookName(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleCreateWebhook()}
+              />
+              <Button onClick={handleCreateWebhook} className="bg-teal-600 hover:bg-teal-700">
+                <Plus className="h-4 w-4 mr-2" />
+                Create
+              </Button>
+            </div>
+
+            {/* Webhook list */}
+            {userWebhooks.length === 0 ? (
+              <div className="text-center py-8 text-slate-500 dark:text-slate-400">
+                <Webhook className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                <p>No webhooks yet. Create one to get started.</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {userWebhooks.map((webhook) => (
+                  <div
+                    key={webhook.id}
+                    className={`p-4 rounded-lg border ${webhook.enabled
+                        ? 'border-green-200 dark:border-green-800 bg-green-50/50 dark:bg-green-900/10'
+                        : 'border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50'
+                      }`}
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium text-slate-900 dark:text-slate-100">
+                          {webhook.name}
+                        </span>
+                        {webhook.enabled ? (
+                          <span className="text-xs px-2 py-0.5 bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300 rounded">
+                            Active
+                          </span>
+                        ) : (
+                          <span className="text-xs px-2 py-0.5 bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-400 rounded">
+                            Disabled
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Switch
+                          checked={webhook.enabled}
+                          onCheckedChange={(enabled) => toggleWebhookMutation.mutate({ id: webhook.id, enabled })}
+                        />
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => deleteWebhookMutation.mutate(webhook.id)}
+                          className="text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <code className="flex-1 text-xs bg-slate-100 dark:bg-slate-900 px-3 py-2 rounded font-mono text-slate-600 dark:text-slate-400 overflow-hidden text-ellipsis">
+                        {window.location.origin}/api/webhook/{webhook.token}
+                      </code>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleCopyWebhookUrl(webhook)}
+                      >
+                        {copiedToken === webhook.id ? (
+                          <Check className="h-4 w-4 text-green-500" />
+                        ) : (
+                          <Copy className="h-4 w-4" />
+                        )}
+                      </Button>
+                    </div>
+
+                    {webhook.usage_count > 0 && (
+                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">
+                        Used {webhook.usage_count} times
+                        {webhook.last_used && ` • Last: ${new Date(webhook.last_used).toLocaleDateString()}`}
+                      </p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Usage info */}
+            <div className="p-4 bg-slate-50 dark:bg-slate-700/50 rounded-lg text-sm text-slate-600 dark:text-slate-400">
+              <p className="font-medium text-slate-900 dark:text-slate-100 mb-2">How to use:</p>
+              <ol className="list-decimal list-inside space-y-1">
+                <li>Create a webhook above</li>
+                <li>Copy the URL and use it in your Airtable automation script</li>
+                <li>POST with: <code className="text-xs bg-slate-200 dark:bg-slate-800 px-1 rounded">{'{ "template_name": "...", "record_id": "rec..." }'}</code></li>
+              </ol>
             </div>
           </CardContent>
         </Card>
