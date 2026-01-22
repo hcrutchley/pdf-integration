@@ -252,9 +252,47 @@ export async function onRequestPost(context) {
 
             const fontSize = field.font_size || 12;
 
+            // Helper function to wrap text into lines that fit within maxWidth
+            const wrapText = (text, maxWidth) => {
+                const words = text.split(' ');
+                const lines = [];
+                let currentLine = '';
+
+                for (const word of words) {
+                    const testLine = currentLine ? `${currentLine} ${word}` : word;
+                    const testWidth = font.widthOfTextAtSize(testLine, fontSize);
+
+                    if (testWidth <= maxWidth) {
+                        currentLine = testLine;
+                    } else {
+                        if (currentLine) lines.push(currentLine);
+                        currentLine = word;
+                    }
+                }
+                if (currentLine) lines.push(currentLine);
+                return lines;
+            };
+
+            // Helper function to truncate text with ellipsis
+            const truncateText = (text, maxWidth) => {
+                const ellipsis = '...';
+                const ellipsisWidth = font.widthOfTextAtSize(ellipsis, fontSize);
+
+                if (font.widthOfTextAtSize(text, fontSize) <= maxWidth) {
+                    return text;
+                }
+
+                let truncated = text;
+                while (truncated.length > 0 && font.widthOfTextAtSize(truncated + ellipsis, fontSize) > maxWidth) {
+                    truncated = truncated.slice(0, -1);
+                }
+                return truncated + ellipsis;
+            };
+
             // Padding constants for consistent spacing
-            const PADDING_X = 3; // Horizontal padding from edges
-            const PADDING_Y = 2; // Vertical padding from edges
+            const PADDING_X = 3;
+            const PADDING_Y = 2;
+            const LINE_HEIGHT = fontSize * 1.2;
 
             // Field dimensions
             const fieldX = field.x || 0;
@@ -262,35 +300,64 @@ export async function onRequestPost(context) {
             const fieldWidth = field.width || 100;
             const fieldHeight = field.height || fontSize + PADDING_Y * 2;
 
-            // Calculate text width for alignment
-            const textWidth = font.widthOfTextAtSize(value, fontSize);
-            const textHeight = fontSize; // Approximate text height
+            // Available width for text
+            const availableWidth = fieldWidth - (PADDING_X * 2);
 
-            // Calculate horizontal position based on alignment
-            let textX;
-            if (field.alignment === 'center') {
-                textX = fieldX + (fieldWidth / 2) - (textWidth / 2);
-            } else if (field.alignment === 'right') {
-                textX = fieldX + fieldWidth - textWidth - PADDING_X;
+            // Calculate how many lines can fit
+            const maxLines = Math.floor((fieldHeight - PADDING_Y * 2) / LINE_HEIGHT);
+
+            // Determine if we should wrap or truncate
+            let linesToDraw = [];
+
+            if (maxLines >= 2) {
+                // Multi-line field - wrap text
+                const wrappedLines = wrapText(value, availableWidth);
+
+                if (wrappedLines.length <= maxLines) {
+                    linesToDraw = wrappedLines;
+                } else {
+                    // Too many lines - truncate last
+                    linesToDraw = wrappedLines.slice(0, maxLines);
+                    if (wrappedLines.length > maxLines) {
+                        linesToDraw[maxLines - 1] = truncateText(linesToDraw[maxLines - 1], availableWidth);
+                    }
+                }
             } else {
-                // Left alignment (default)
-                textX = fieldX + PADDING_X;
+                // Single line - truncate if needed
+                linesToDraw = [truncateText(value, availableWidth)];
             }
 
-            // Calculate vertical position
-            // PDF coordinates: Y=0 is at bottom, increases upward
-            // Canvas coordinates: Y=0 is at top, increases downward
-            // We want text vertically centered in the field box
+            // Calculate starting Y position
             const fieldBottom = pageHeight - fieldY - fieldHeight;
-            const textY = fieldBottom + (fieldHeight / 2) - (textHeight / 2) + PADDING_Y;
+            let startY = fieldBottom + fieldHeight - PADDING_Y - fontSize;
+            if (linesToDraw.length === 1) {
+                // Single line - center vertically
+                startY = fieldBottom + (fieldHeight / 2) - (fontSize / 2) + PADDING_Y;
+            }
 
-            page.drawText(value, {
-                x: textX,
-                y: textY,
-                size: fontSize,
-                font: font,
-                color: rgb(0, 0, 0),
-            });
+            // Draw each line
+            for (let i = 0; i < linesToDraw.length; i++) {
+                const line = linesToDraw[i];
+                const lineY = startY - (i * LINE_HEIGHT);
+
+                const lineWidth = font.widthOfTextAtSize(line, fontSize);
+                let textX;
+                if (field.alignment === 'center') {
+                    textX = fieldX + (fieldWidth / 2) - (lineWidth / 2);
+                } else if (field.alignment === 'right') {
+                    textX = fieldX + fieldWidth - lineWidth - PADDING_X;
+                } else {
+                    textX = fieldX + PADDING_X;
+                }
+
+                page.drawText(line, {
+                    x: textX,
+                    y: lineY,
+                    size: fontSize,
+                    font: font,
+                    color: rgb(0, 0, 0),
+                });
+            }
         }
 
         const generatedPdfBytes = await pdfDoc.save();
