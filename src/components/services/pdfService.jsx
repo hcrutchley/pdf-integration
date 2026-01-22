@@ -18,7 +18,7 @@ export const pdfService = {
       const response = await fetch(templateUrl);
       const arrayBuffer = await response.arrayBuffer();
       const pdfDoc = await PDFDocument.load(arrayBuffer);
-      
+
       // Load fonts
       const helveticaFont = await pdfDoc.embedFont(StandardFonts.Helvetica);
       const helveticaBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
@@ -28,17 +28,17 @@ export const pdfService = {
       const timesBold = await pdfDoc.embedFont(StandardFonts.TimesRomanBold);
       const timesItalic = await pdfDoc.embedFont(StandardFonts.TimesRomanItalic);
       const courier = await pdfDoc.embedFont(StandardFonts.Courier);
-      
+
       const pages = pdfDoc.getPages();
-      
+
       // Draw each field on the PDF
       for (const field of fields) {
         const pageIndex = (field.page || 1) - 1;
         if (pageIndex >= pages.length) continue;
-        
+
         const page = pages[pageIndex];
         const { height: pageHeight } = page.getSize();
-        
+
         // Get field value - handle special values first
         let value;
         if (field.special_value) {
@@ -63,9 +63,9 @@ export const pdfService = {
         } else {
           continue; // Skip fields without data or special value
         }
-        
+
         value = String(value || '');
-        
+
         // Select font based on style
         let font = helveticaFont;
         if (field.font === 'Times') {
@@ -81,34 +81,51 @@ export const pdfService = {
           else if (field.italic) font = helveticaOblique;
           else font = helveticaFont;
         }
-        
+
         const fontSize = field.font_size || 12;
-        
-        // Convert coordinates (canvas to PDF coordinates)
-        // PDF coordinates start from bottom-left
-        const x = field.x || 0;
-        const y = pageHeight - (field.y || 0) - fontSize;
-        
-        // Handle text alignment
-        let textX = x;
+
+        // Padding constants for consistent spacing
+        const PADDING_X = 3; // Horizontal padding from edges
+        const PADDING_Y = 2; // Vertical padding from edges
+
+        // Field dimensions
+        const fieldX = field.x || 0;
+        const fieldY = field.y || 0;
+        const fieldWidth = field.width || 100;
+        const fieldHeight = field.height || fontSize + PADDING_Y * 2;
+
+        // Calculate text width for alignment
+        const textWidth = font.widthOfTextAtSize(value, fontSize);
+        const textHeight = fontSize; // Approximate text height
+
+        // Calculate horizontal position based on alignment
+        let textX;
         if (field.alignment === 'center') {
-          const textWidth = font.widthOfTextAtSize(value, fontSize);
-          textX = x + (field.width || 0) / 2 - textWidth / 2;
+          textX = fieldX + (fieldWidth / 2) - (textWidth / 2);
         } else if (field.alignment === 'right') {
-          const textWidth = font.widthOfTextAtSize(value, fontSize);
-          textX = x + (field.width || 0) - textWidth;
+          textX = fieldX + fieldWidth - textWidth - PADDING_X;
+        } else {
+          // Left alignment (default)
+          textX = fieldX + PADDING_X;
         }
-        
+
+        // Calculate vertical position
+        // PDF coordinates: Y=0 is at bottom, increases upward
+        // Canvas coordinates: Y=0 is at top, increases downward
+        // We want text vertically centered in the field box
+        const fieldBottom = pageHeight - fieldY - fieldHeight;
+        const textY = fieldBottom + (fieldHeight / 2) - (textHeight / 2) + PADDING_Y;
+
         // Draw the text
         page.drawText(value, {
           x: textX,
-          y: y,
+          y: textY,
           size: fontSize,
           font: font,
           color: rgb(0, 0, 0),
         });
       }
-      
+
       // Save the PDF
       const pdfBytes = await pdfDoc.save();
       return new Blob([pdfBytes], { type: 'application/pdf' });

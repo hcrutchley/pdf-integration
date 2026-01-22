@@ -251,21 +251,42 @@ export async function onRequestPost(context) {
             }
 
             const fontSize = field.font_size || 12;
-            const x = field.x || 0;
-            const y = pageHeight - (field.y || 0) - fontSize;
 
-            let textX = x;
+            // Padding constants for consistent spacing
+            const PADDING_X = 3; // Horizontal padding from edges
+            const PADDING_Y = 2; // Vertical padding from edges
+
+            // Field dimensions
+            const fieldX = field.x || 0;
+            const fieldY = field.y || 0;
+            const fieldWidth = field.width || 100;
+            const fieldHeight = field.height || fontSize + PADDING_Y * 2;
+
+            // Calculate text width for alignment
+            const textWidth = font.widthOfTextAtSize(value, fontSize);
+            const textHeight = fontSize; // Approximate text height
+
+            // Calculate horizontal position based on alignment
+            let textX;
             if (field.alignment === 'center') {
-                const textWidth = font.widthOfTextAtSize(value, fontSize);
-                textX = x + (field.width || 0) / 2 - textWidth / 2;
+                textX = fieldX + (fieldWidth / 2) - (textWidth / 2);
             } else if (field.alignment === 'right') {
-                const textWidth = font.widthOfTextAtSize(value, fontSize);
-                textX = x + (field.width || 0) - textWidth;
+                textX = fieldX + fieldWidth - textWidth - PADDING_X;
+            } else {
+                // Left alignment (default)
+                textX = fieldX + PADDING_X;
             }
+
+            // Calculate vertical position
+            // PDF coordinates: Y=0 is at bottom, increases upward
+            // Canvas coordinates: Y=0 is at top, increases downward
+            // We want text vertically centered in the field box
+            const fieldBottom = pageHeight - fieldY - fieldHeight;
+            const textY = fieldBottom + (fieldHeight / 2) - (textHeight / 2) + PADDING_Y;
 
             page.drawText(value, {
                 x: textX,
-                y: y,
+                y: textY,
                 size: fontSize,
                 font: font,
                 color: rgb(0, 0, 0),
