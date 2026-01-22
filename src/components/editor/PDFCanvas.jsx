@@ -67,9 +67,10 @@ export default function PDFCanvas({ pdfUrl, page = 1, scale = 1, onLoad, onLoadS
 
     return () => {
       cancelled = true;
-      if (loadingTask) {
-        loadingTask.destroy().catch(() => { });
-      }
+      // NOTE: Do NOT call loadingTask.destroy() here!
+      // Destroying a loading task destroys the shared global PDF worker,
+      // which breaks other PDFCanvas instances (e.g., thumbnails on Templates page).
+      // The cancelled flag is sufficient to prevent state updates.
     };
   }, [pdfUrl]);
 
