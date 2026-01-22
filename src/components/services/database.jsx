@@ -177,9 +177,10 @@ export const db = {
       return await db.list("Webhook", "-created_date");
     },
     async create(data) {
-      // Generate unique token
+      // Generate unique token and secret key
       const token = `wh_${crypto.randomUUID().replace(/-/g, '')}`;
-      return await db.create("Webhook", { ...data, token, enabled: true, usage_count: 0 });
+      const secret_key = `sk_${crypto.randomUUID().replace(/-/g, '')}`;
+      return await db.create("Webhook", { ...data, token, secret_key, enabled: true, usage_count: 0 });
     },
     async update(id, data) {
       return await db.update("Webhook", id, data);

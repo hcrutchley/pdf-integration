@@ -124,6 +124,13 @@ export default function Settings() {
     setTimeout(() => setCopiedToken(null), 2000);
   };
 
+  const handleCopyWebhookSecret = (webhook) => {
+    navigator.clipboard.writeText(webhook.secret_key);
+    setCopiedToken(`${webhook.id}-secret`);
+    toast.success('Secret key copied');
+    setTimeout(() => setCopiedToken(null), 2000);
+  };
+
   React.useEffect(() => {
     const saved = localStorage.getItem('pdfEditorShortcuts');
     if (saved) {
@@ -432,8 +439,8 @@ export default function Settings() {
                   <div
                     key={webhook.id}
                     className={`p-4 rounded-lg border ${webhook.enabled
-                        ? 'border-green-200 dark:border-green-800 bg-green-50/50 dark:bg-green-900/10'
-                        : 'border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50'
+                      ? 'border-green-200 dark:border-green-800 bg-green-50/50 dark:bg-green-900/10'
+                      : 'border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50'
                       }`}
                   >
                     <div className="flex items-center justify-between mb-2">
@@ -468,6 +475,7 @@ export default function Settings() {
                     </div>
 
                     <div className="flex items-center gap-2">
+                      <span className="text-xs text-slate-500 w-12">URL:</span>
                       <code className="flex-1 text-xs bg-slate-100 dark:bg-slate-900 px-3 py-2 rounded font-mono text-slate-600 dark:text-slate-400 overflow-hidden text-ellipsis">
                         {window.location.origin}/api/webhook/{webhook.token}
                       </code>
@@ -477,6 +485,24 @@ export default function Settings() {
                         onClick={() => handleCopyWebhookUrl(webhook)}
                       >
                         {copiedToken === webhook.id ? (
+                          <Check className="h-4 w-4 text-green-500" />
+                        ) : (
+                          <Copy className="h-4 w-4" />
+                        )}
+                      </Button>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-slate-500 w-12">Secret:</span>
+                      <code className="flex-1 text-xs bg-slate-100 dark:bg-slate-900 px-3 py-2 rounded font-mono text-slate-600 dark:text-slate-400 overflow-hidden text-ellipsis">
+                        {webhook.secret_key}
+                      </code>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleCopyWebhookSecret(webhook)}
+                      >
+                        {copiedToken === `${webhook.id}-secret` ? (
                           <Check className="h-4 w-4 text-green-500" />
                         ) : (
                           <Copy className="h-4 w-4" />
@@ -500,8 +526,9 @@ export default function Settings() {
               <p className="font-medium text-slate-900 dark:text-slate-100 mb-2">How to use:</p>
               <ol className="list-decimal list-inside space-y-1">
                 <li>Create a webhook above</li>
-                <li>Copy the URL and use it in your Airtable automation script</li>
-                <li>POST with: <code className="text-xs bg-slate-200 dark:bg-slate-800 px-1 rounded">{'{ "template_name": "...", "record_id": "rec..." }'}</code></li>
+                <li>Copy both the URL and Secret key</li>
+                <li>In Airtable, add header: <code className="text-xs bg-slate-200 dark:bg-slate-800 px-1 rounded">X-Webhook-Secret: your-secret</code></li>
+                <li>POST body: <code className="text-xs bg-slate-200 dark:bg-slate-800 px-1 rounded">{'{ "template_name": "...", "record_id": "rec..." }'}</code></li>
               </ol>
             </div>
           </CardContent>

@@ -12,7 +12,7 @@ export async function onRequestPost(context) {
     const corsHeaders = {
         'Access-Control-Allow-Origin': '*',
         'Access-Control-Allow-Methods': 'POST, OPTIONS',
-        'Access-Control-Allow-Headers': 'Content-Type',
+        'Access-Control-Allow-Headers': 'Content-Type, X-Webhook-Secret',
     };
 
     // ========== 1. VALIDATE WEBHOOK TOKEN ==========
@@ -39,6 +39,15 @@ export async function onRequestPost(context) {
 
     const webhook = JSON.parse(webhooks[0].data);
     webhook.id = webhooks[0].id;
+
+    // ========== 2. VALIDATE SECRET KEY ==========
+    const providedSecret = request.headers.get('X-Webhook-Secret');
+    if (webhook.secret_key && webhook.secret_key !== providedSecret) {
+        return Response.json(
+            { success: false, error: 'Invalid webhook secret' },
+            { status: 401, headers: corsHeaders }
+        );
+    }
 
     // Check if webhook is enabled
     if (webhook.enabled === false) {
