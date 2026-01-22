@@ -32,6 +32,7 @@ export default function BatchFormatPanel({
         return {
             font: selectedFieldObjects.every(f => f.font === first.font) ? first.font : null,
             font_size: selectedFieldObjects.every(f => f.font_size === first.font_size) ? first.font_size : null,
+            font_color: selectedFieldObjects.every(f => f.font_color === first.font_color) ? first.font_color : null,
             alignment: selectedFieldObjects.every(f => f.alignment === first.alignment) ? first.alignment : null,
             vertical_alignment: selectedFieldObjects.every(f => f.vertical_alignment === first.vertical_alignment) ? first.vertical_alignment : null,
             bold: selectedFieldObjects.every(f => f.bold === first.bold) ? first.bold : null,
@@ -95,17 +96,37 @@ export default function BatchFormatPanel({
                                 </select>
                             </div>
 
-                            <div>
-                                <Label className="text-xs text-slate-600 dark:text-slate-400">Font Size</Label>
-                                <Input
-                                    type="number"
-                                    value={mixedState.font_size ?? ''}
-                                    placeholder={mixedState.font_size === null ? "Mixed" : ""}
-                                    onChange={(e) => handleUpdate({ font_size: parseFloat(e.target.value) })}
-                                    min="6"
-                                    max="72"
-                                    className="h-8"
-                                />
+                            <div className="grid grid-cols-2 gap-2">
+                                <div>
+                                    <Label className="text-xs text-slate-600 dark:text-slate-400">Font Size</Label>
+                                    <Input
+                                        type="number"
+                                        value={mixedState.font_size ?? ''}
+                                        placeholder={mixedState.font_size === null ? "Mixed" : ""}
+                                        onChange={(e) => handleUpdate({ font_size: parseFloat(e.target.value) })}
+                                        min="6"
+                                        max="72"
+                                        className="h-8"
+                                    />
+                                </div>
+                                <div>
+                                    <Label className="text-xs text-slate-600 dark:text-slate-400">Font Color</Label>
+                                    <div className="flex gap-1">
+                                        <Input
+                                            type="color"
+                                            value={mixedState.font_color || '#000000'}
+                                            onChange={(e) => handleUpdate({ font_color: e.target.value })}
+                                            className="h-8 w-10 p-1 cursor-pointer"
+                                        />
+                                        <Input
+                                            type="text"
+                                            value={mixedState.font_color || ''}
+                                            placeholder={mixedState.font_color === null ? "Mixed" : "#000000"}
+                                            onChange={(e) => handleUpdate({ font_color: e.target.value })}
+                                            className="h-8 flex-1 font-mono text-xs"
+                                        />
+                                    </div>
+                                </div>
                             </div>
                         </AccordionContent>
                     </AccordionItem>
