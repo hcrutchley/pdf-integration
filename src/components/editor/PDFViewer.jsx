@@ -99,6 +99,46 @@ export default function PDFViewer({
   // Guard against prop syncing interrupting drag
   const isInteractingRef = useRef(false);
 
+  // Per-page guides: convert old flat format { vertical, horizontal } to per-page format { pageNum: { vertical, horizontal } }
+  // and provide currentPageGuides for the current page
+  const isPerPageFormat = useMemo(() => {
+    // Check if guides is in per-page format (has numeric keys) vs flat format (has vertical/horizontal keys)
+    return localGuides && typeof localGuides === 'object' &&
+      !Array.isArray(localGuides.vertical) &&
+      !Array.isArray(localGuides.horizontal);
+  }, [localGuides]);
+
+  const currentPageGuides = useMemo(() => {
+    if (isPerPageFormat) {
+      // Per-page format: get guides for current page, or empty if none
+      return localGuides[currentPage] || { vertical: [], horizontal: [] };
+    } else {
+      // Old flat format: same guides on all pages (backward compatibility)
+      return localGuides || { vertical: [], horizontal: [] };
+    }
+  }, [localGuides, currentPage, isPerPageFormat]);
+
+  // Helper to update guides for current page
+  const updateCurrentPageGuides = useCallback((newPageGuides) => {
+    if (isPerPageFormat) {
+      setLocalGuides(prev => ({
+        ...prev,
+        [currentPage]: newPageGuides
+      }));
+      setGuides(prev => ({
+        ...prev,
+        [currentPage]: newPageGuides
+      }));
+    } else {
+      // Migrate to per-page format on first edit
+      const perPageGuides = {
+        [currentPage]: newPageGuides
+      };
+      setLocalGuides(perPageGuides);
+      setGuides(perPageGuides);
+    }
+  }, [currentPage, isPerPageFormat]);
+
   // Save to history
   const saveToHistory = useCallback(() => {
     const snapshot = {
@@ -234,14 +274,14 @@ export default function PDFViewer({
 
   const snapToGuides = useCallback((value, isVertical) => {
     if (!guidesVisible) return { snapped: value, didSnap: false };
-    const guideSet = isVertical ? localGuides.vertical : localGuides.horizontal;
+    const guideSet = isVertical ? currentPageGuides.vertical : currentPageGuides.horizontal;
     for (const guide of guideSet) {
       if (Math.abs(value - guide) < SNAP_THRESHOLD / scale) {
         return { snapped: guide, didSnap: true };
       }
     }
     return { snapped: value, didSnap: false };
-  }, [localGuides, scale, guidesVisible]);
+  }, [currentPageGuides, scale, guidesVisible]);
 
   const snapToFields = useCallback((field, newX, newY, newWidth, newHeight) => {
     let snappedX = newX;
@@ -275,7 +315,7 @@ export default function PDFViewer({
     }
 
     // Snap to guides (top and bottom for horizontal guides)
-    for (const guide of localGuides.horizontal) {
+    for (const guide of currentPageGuides.horizontal) {
       if (Math.abs(newY - guide) < SNAP_THRESHOLD / scale) {
         snappedY = guide;
         snapLinesH.push(guide);
@@ -680,13 +720,13 @@ export default function PDFViewer({
           setSelectedFields(fieldsInBox);
         } else if (mode === 'guide') {
           const guidesInBox = [];
-          localGuides.vertical.forEach((pos, idx) => {
+          currentPageGuides.vertical.forEach((pos, idx) => {
             // Select if guide line crosses the box horizontally
             if (pos >= minX && pos <= maxX && minY <= 792 && maxY >= 0) {
               guidesInBox.push({ type: 'vertical', index: idx, position: pos });
             }
           });
-          localGuides.horizontal.forEach((pos, idx) => {
+          currentPageGuides.horizontal.forEach((pos, idx) => {
             // Select if guide line crosses the box vertically
             if (pos >= minY && pos <= maxY && minX <= 612 && maxX >= 0) {
               guidesInBox.push({ type: 'horizontal', index: idx, position: pos });
@@ -804,7 +844,7 @@ export default function PDFViewer({
     if (guidesLocked) return;
     e.stopPropagation();
     e.preventDefault();
-    const guide = { type, index, position: type === 'vertical' ? localGuides.vertical[index] : localGuides.horizontal[index] };
+    const guide = { type, index, position: type === 'vertical' ? currentPageGuides.vertical[index] : currentPageGuides.horizontal[index] };
 
     console.log(`[GUIDE] MouseDown on ${type} guide ${index}, shift=${e.shiftKey}`);
 
@@ -829,7 +869,7 @@ export default function PDFViewer({
       // Store initial positions for all selected guides
       initialGuidePositions.current = {};
       currentSelection.forEach(g => {
-        const pos = g.type === 'vertical' ? localGuides.vertical[g.index] : localGuides.horizontal[g.index];
+        const pos = g.type === 'vertical' ? currentPageGuides.vertical[g.index] : currentPageGuides.horizontal[g.index];
         initialGuidePositions.current[`${g.type}-${g.index}`] = pos;
       });
 
@@ -841,20 +881,20 @@ export default function PDFViewer({
 
   const handleAddGuide = (type) => {
     const pos = type === 'vertical' ? 100 : 100;
-    const newGuides = {
-      ...guides,
-      [type]: [...guides[type], pos]
+    const newPageGuides = {
+      ...currentPageGuides,
+      [type]: [...currentPageGuides[type], pos]
     };
-    setGuides(newGuides);
+    updateCurrentPageGuides(newPageGuides);
   };
 
   const deleteSelectedGuides = () => {
-    const newGuides = { ...guides };
+    const newPageGuides = { ...currentPageGuides };
     const sortedGuides = [...selectedGuides].sort((a, b) => b.index - a.index);
     sortedGuides.forEach(({ type, index }) => {
-      newGuides[type] = newGuides[type].filter((_, i) => i !== index);
+      newPageGuides[type] = newPageGuides[type].filter((_, i) => i !== index);
     });
-    setGuides(newGuides);
+    updateCurrentPageGuides(newPageGuides);
     setSelectedGuides([]);
   };
 
@@ -917,11 +957,11 @@ export default function PDFViewer({
     const last = vGuides[vGuides.length - 1].position;
     const spacing = (last - first) / (vGuides.length - 1);
 
-    const newGuides = { ...guides };
+    const newPageGuides = { ...currentPageGuides };
     for (let i = 1; i < vGuides.length - 1; i++) {
-      newGuides.vertical[vGuides[i].index] = first + spacing * i;
+      newPageGuides.vertical[vGuides[i].index] = first + spacing * i;
     }
-    setGuides(newGuides);
+    updateCurrentPageGuides(newPageGuides);
   };
 
   const distributeGuidesVertically = () => {
@@ -931,21 +971,21 @@ export default function PDFViewer({
     const last = hGuides[hGuides.length - 1].position;
     const spacing = (last - first) / (hGuides.length - 1);
 
-    const newGuides = { ...guides };
+    const newPageGuides = { ...currentPageGuides };
     for (let i = 1; i < hGuides.length - 1; i++) {
-      newGuides.horizontal[hGuides[i].index] = first + spacing * i;
+      newPageGuides.horizontal[hGuides[i].index] = first + spacing * i;
     }
-    setGuides(newGuides);
+    updateCurrentPageGuides(newPageGuides);
   };
 
   const createGuidesFromField = (field, orientation) => {
-    const newGuides = { ...guides };
+    const newPageGuides = { ...currentPageGuides };
     if (orientation === 'horizontal') {
-      newGuides.horizontal.push(field.y, field.y + field.height);
+      newPageGuides.horizontal.push(field.y, field.y + field.height);
     } else {
-      newGuides.vertical.push(field.x, field.x + field.width);
+      newPageGuides.vertical.push(field.x, field.x + field.width);
     }
-    setGuides(newGuides);
+    updateCurrentPageGuides(newPageGuides);
   };
 
   const cascadeFields = () => {
@@ -963,7 +1003,7 @@ export default function PDFViewer({
 
     // Find all horizontal guides below this field
     const fieldBottom = templateField.y + templateField.height;
-    const guidesBelow = localGuides.horizontal
+    const guidesBelow = currentPageGuides.horizontal
       .filter(g => g >= fieldBottom)
       .sort((a, b) => a - b);
 
@@ -1012,17 +1052,17 @@ export default function PDFViewer({
     const spacing = filtered[1].position - filtered[0].position;
     const lastPos = filtered[filtered.length - 1].position;
 
-    const newGuides = { ...guides };
+    const newPageGuides = { ...currentPageGuides };
     // Create 'count' extra guides after the last selected one
     for (let i = 1; i <= count; i++) {
       const pos = lastPos + (spacing * i);
       if (type === 'vertical') {
-        if (!newGuides.vertical.includes(pos)) newGuides.vertical.push(pos);
+        if (!newPageGuides.vertical.includes(pos)) newPageGuides.vertical.push(pos);
       } else {
-        if (!newGuides.horizontal.includes(pos)) newGuides.horizontal.push(pos);
+        if (!newPageGuides.horizontal.includes(pos)) newPageGuides.horizontal.push(pos);
       }
     }
-    setGuides(newGuides);
+    updateCurrentPageGuides(newPageGuides);
   };
 
   const fillFieldsFromGuides = () => {
@@ -1815,16 +1855,16 @@ export default function PDFViewer({
               });
             } else if (mode === 'guide') {
               // Check if clicked on a guide
-              const clickedVerticalGuide = localGuides.vertical.findIndex((pos) => Math.abs(mouseX - pos) < 5 / scale);
-              const clickedHorizontalGuide = localGuides.horizontal.findIndex((pos) => Math.abs(mouseY - pos) < 5 / scale);
+              const clickedVerticalGuide = currentPageGuides.vertical.findIndex((pos) => Math.abs(mouseX - pos) < 5 / scale);
+              const clickedHorizontalGuide = currentPageGuides.horizontal.findIndex((pos) => Math.abs(mouseY - pos) < 5 / scale);
 
               if (clickedVerticalGuide !== -1) {
-                const guide = { type: 'vertical', index: clickedVerticalGuide, position: localGuides.vertical[clickedVerticalGuide] };
+                const guide = { type: 'vertical', index: clickedVerticalGuide, position: currentPageGuides.vertical[clickedVerticalGuide] };
                 if (!selectedGuides.find(g => g.type === 'vertical' && g.index === clickedVerticalGuide)) {
                   setSelectedGuides([guide]);
                 }
               } else if (clickedHorizontalGuide !== -1) {
-                const guide = { type: 'horizontal', index: clickedHorizontalGuide, position: localGuides.horizontal[clickedHorizontalGuide] };
+                const guide = { type: 'horizontal', index: clickedHorizontalGuide, position: currentPageGuides.horizontal[clickedHorizontalGuide] };
                 if (!selectedGuides.find(g => g.type === 'horizontal' && g.index === clickedHorizontalGuide)) {
                   setSelectedGuides([guide]);
                 }
@@ -1889,7 +1929,7 @@ export default function PDFViewer({
           </div>
 
           {/* Guides */}
-          {guidesVisible && localGuides.vertical.map((pos, idx) => {
+          {guidesVisible && currentPageGuides.vertical.map((pos, idx) => {
             const isSelected = !guidesLocked && selectedGuides.some(g => g.type === 'vertical' && g.index === idx);
             const isDragging = draggingGuide && (draggingGuide.type === 'vertical' && draggingGuide.index === idx || (draggingGuide.multiSelect && isSelected));
             return (
@@ -1922,7 +1962,7 @@ export default function PDFViewer({
               </div>
             );
           })}
-          {guidesVisible && localGuides.horizontal.map((pos, idx) => {
+          {guidesVisible && currentPageGuides.horizontal.map((pos, idx) => {
             const isSelected = !guidesLocked && selectedGuides.some(g => g.type === 'horizontal' && g.index === idx);
             const isDragging = draggingGuide && (draggingGuide.type === 'horizontal' && draggingGuide.index === idx || (draggingGuide.multiSelect && isSelected));
             return (
