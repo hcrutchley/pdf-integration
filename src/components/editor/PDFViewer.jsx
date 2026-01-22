@@ -99,45 +99,22 @@ export default function PDFViewer({
   // Guard against prop syncing interrupting drag
   const isInteractingRef = useRef(false);
 
-  // Per-page guides: convert old flat format { vertical, horizontal } to per-page format { pageNum: { vertical, horizontal } }
-  // and provide currentPageGuides for the current page
-  const isPerPageFormat = useMemo(() => {
-    // Check if guides is in per-page format (has numeric keys) vs flat format (has vertical/horizontal keys)
-    return localGuides && typeof localGuides === 'object' &&
-      !Array.isArray(localGuides.vertical) &&
-      !Array.isArray(localGuides.horizontal);
-  }, [localGuides]);
-
+  // Per-page guides: structure is { pageNum: { vertical: [], horizontal: [] } }
   const currentPageGuides = useMemo(() => {
-    if (isPerPageFormat) {
-      // Per-page format: get guides for current page, or empty if none
-      return localGuides[currentPage] || { vertical: [], horizontal: [] };
-    } else {
-      // Old flat format: same guides on all pages (backward compatibility)
-      return localGuides || { vertical: [], horizontal: [] };
-    }
-  }, [localGuides, currentPage, isPerPageFormat]);
+    return localGuides?.[currentPage] || { vertical: [], horizontal: [] };
+  }, [localGuides, currentPage]);
 
   // Helper to update guides for current page
   const updateCurrentPageGuides = useCallback((newPageGuides) => {
-    if (isPerPageFormat) {
-      setLocalGuides(prev => ({
-        ...prev,
-        [currentPage]: newPageGuides
-      }));
-      setGuides(prev => ({
-        ...prev,
-        [currentPage]: newPageGuides
-      }));
-    } else {
-      // Migrate to per-page format on first edit
-      const perPageGuides = {
-        [currentPage]: newPageGuides
-      };
-      setLocalGuides(perPageGuides);
-      setGuides(perPageGuides);
-    }
-  }, [currentPage, isPerPageFormat]);
+    setLocalGuides(prev => ({
+      ...prev,
+      [currentPage]: newPageGuides
+    }));
+    setGuides(prev => ({
+      ...prev,
+      [currentPage]: newPageGuides
+    }));
+  }, [currentPage]);
 
   // Save to history
   const saveToHistory = useCallback(() => {
@@ -631,25 +608,8 @@ export default function PDFViewer({
           return { ...f, ...updates };
         }));
       } else if (draggingGuide) {
-        // Helper to get page guides from the structure (handles both formats)
-        const getPageGuides = (guidesObj) => {
-          if (guidesObj && guidesObj.vertical && Array.isArray(guidesObj.vertical)) {
-            // Old flat format
-            return guidesObj;
-          }
-          // Per-page format
-          return guidesObj[currentPage] || { vertical: [], horizontal: [] };
-        };
-
-        // Helper to update guides in the structure
-        const updateGuidesInStructure = (guidesObj, newPageGuides) => {
-          if (guidesObj && guidesObj.vertical && Array.isArray(guidesObj.vertical)) {
-            // Old flat format - return newPageGuides directly
-            return newPageGuides;
-          }
-          // Per-page format
-          return { ...guidesObj, [currentPage]: newPageGuides };
-        };
+        // Get guides for current page
+        const pageGuides = localGuides?.[currentPage] || { vertical: [], horizontal: [] };
 
         if (draggingGuide.multiSelect && selectedGuides.length > 1) {
           // Multi-guide drag: apply same delta to all selected guides
@@ -658,24 +618,21 @@ export default function PDFViewer({
           const deltaX = ((e.clientX - draggingGuide.startX) / scale) * speedMultiplier;
           const deltaY = ((e.clientY - draggingGuide.startY) / scale) * speedMultiplier;
 
-          setLocalGuides(prev => {
-            const pageGuides = getPageGuides(prev);
-            const newPageGuides = {
-              vertical: [...pageGuides.vertical],
-              horizontal: [...pageGuides.horizontal]
-            };
-            selectedGuides.forEach(g => {
-              const initial = initialGuidePositions.current[`${g.type}-${g.index}`];
-              if (initial !== undefined) {
-                if (g.type === 'vertical') {
-                  newPageGuides.vertical[g.index] = Math.max(0, Math.min(612, initial + deltaX));
-                } else {
-                  newPageGuides.horizontal[g.index] = Math.max(0, Math.min(792, initial + deltaY));
-                }
+          const newPageGuides = {
+            vertical: [...pageGuides.vertical],
+            horizontal: [...pageGuides.horizontal]
+          };
+          selectedGuides.forEach(g => {
+            const initial = initialGuidePositions.current[`${g.type}-${g.index}`];
+            if (initial !== undefined) {
+              if (g.type === 'vertical') {
+                newPageGuides.vertical[g.index] = Math.max(0, Math.min(612, initial + deltaX));
+              } else {
+                newPageGuides.horizontal[g.index] = Math.max(0, Math.min(792, initial + deltaY));
               }
-            });
-            return updateGuidesInStructure(prev, newPageGuides);
+            }
           });
+          setLocalGuides(prev => ({ ...prev, [currentPage]: newPageGuides }));
         } else {
           // Single guide drag
           const isPrecisionKey = e.getModifierState && e.getModifierState('CapsLock');
@@ -685,23 +642,20 @@ export default function PDFViewer({
             const deltaX = ((e.clientX - draggingGuide.startX) / scale) * speedMultiplier;
             const deltaY = ((e.clientY - draggingGuide.startY) / scale) * speedMultiplier;
 
-            setLocalGuides(prev => {
-              const pageGuides = getPageGuides(prev);
-              const newPageGuides = {
-                vertical: [...pageGuides.vertical],
-                horizontal: [...pageGuides.horizontal]
-              };
-              const initialKey = `${draggingGuide.type}-${draggingGuide.index}`;
-              const initial = initialGuidePositions.current[initialKey] ??
-                (draggingGuide.type === 'vertical' ? pageGuides.vertical[draggingGuide.index] : pageGuides.horizontal[draggingGuide.index]);
+            const newPageGuides = {
+              vertical: [...pageGuides.vertical],
+              horizontal: [...pageGuides.horizontal]
+            };
+            const initialKey = `${draggingGuide.type}-${draggingGuide.index}`;
+            const initial = initialGuidePositions.current[initialKey] ??
+              (draggingGuide.type === 'vertical' ? pageGuides.vertical[draggingGuide.index] : pageGuides.horizontal[draggingGuide.index]);
 
-              if (draggingGuide.type === 'vertical') {
-                newPageGuides.vertical[draggingGuide.index] = Math.max(0, Math.min(612, initial + deltaX));
-              } else {
-                newPageGuides.horizontal[draggingGuide.index] = Math.max(0, Math.min(792, initial + deltaY));
-              }
-              return updateGuidesInStructure(prev, newPageGuides);
-            });
+            if (draggingGuide.type === 'vertical') {
+              newPageGuides.vertical[draggingGuide.index] = Math.max(0, Math.min(612, initial + deltaX));
+            } else {
+              newPageGuides.horizontal[draggingGuide.index] = Math.max(0, Math.min(792, initial + deltaY));
+            }
+            setLocalGuides(prev => ({ ...prev, [currentPage]: newPageGuides }));
           } else {
             // Standard absolute tracking
             const rect = pdfContainerRef.current.getBoundingClientRect();
@@ -709,19 +663,16 @@ export default function PDFViewer({
               ? (e.clientX - rect.left) / scale
               : (e.clientY - rect.top) / scale;
 
-            setLocalGuides(prev => {
-              const pageGuides = getPageGuides(prev);
-              const newPageGuides = {
-                vertical: [...pageGuides.vertical],
-                horizontal: [...pageGuides.horizontal]
-              };
-              if (draggingGuide.type === 'vertical') {
-                newPageGuides.vertical[draggingGuide.index] = Math.max(0, Math.min(612, pos));
-              } else {
-                newPageGuides.horizontal[draggingGuide.index] = Math.max(0, Math.min(792, pos));
-              }
-              return updateGuidesInStructure(prev, newPageGuides);
-            });
+            const newPageGuides = {
+              vertical: [...pageGuides.vertical],
+              horizontal: [...pageGuides.horizontal]
+            };
+            if (draggingGuide.type === 'vertical') {
+              newPageGuides.vertical[draggingGuide.index] = Math.max(0, Math.min(612, pos));
+            } else {
+              newPageGuides.horizontal[draggingGuide.index] = Math.max(0, Math.min(792, pos));
+            }
+            setLocalGuides(prev => ({ ...prev, [currentPage]: newPageGuides }));
           }
         }
       } else if (boxSelect) {
