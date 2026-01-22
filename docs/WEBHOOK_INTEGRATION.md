@@ -1,166 +1,135 @@
-# AirPDF Webhook Integration Guide
+# PDFit Webhook Integration Guide
 
-This document explains how to set up Airtable automations to trigger PDF generation via webhook instead of polling.
+Generate PDFs via webhook from Airtable automations.
 
-## Overview
-
-AirPDF supports two methods for triggering PDF generation:
-1. **Polling** (Legacy) - AirPDF periodically checks Airtable for matching records
-2. **Webhook** (Recommended) - Airtable sends a request to AirPDF when a trigger condition is met
-
-Webhook is recommended because:
-- Instant PDF generation (no polling delay)
-- No unnecessary API calls
-- More reliable and scalable
-
----
-
-## Webhook Endpoint
+## Endpoint
 
 ```
-POST https://your-airpdf-domain.pages.dev/api/generate
+POST https://your-app.pages.dev/api/webhook/generate-pdf
 ```
 
-## Request Format
+## Authentication
 
-Send a POST request with the following JSON body:
+Add header:
+```
+X-Webhook-Secret: your-secret-here
+```
+
+Set the secret in Cloudflare Dashboard → Settings → Environment Variables → `WEBHOOK_SECRET`
+
+## Request
 
 ```json
 {
-  "templateId": "template_xxx",
-  "recordId": "recXXXXXXXX",
-  "connectionId": "connection_xxx"
+  "template_name": "Personal Info",
+  "record_id": "recXXXXXXXX"
 }
 ```
-
-### Parameters
 
 | Parameter | Required | Description |
 |-----------|----------|-------------|
-| `templateId` | Yes | The AirPDF template ID |
-| `recordId` | Yes | The Airtable record ID to use for field values |
-| `connectionId` | Yes | The AirPDF connection ID (for API key) |
+| `template_name` | Yes | Template name as configured in PDFit |
+| `record_id` | Yes | Airtable record ID to fill data from |
+
+The webhook looks up everything else from the template config:
+- Field mappings
+- Airtable connection/API key
+- Base and table
+- Output attachment field
 
 ---
 
-## Setting Up Airtable Automation
-
-### Step 1: Create an Automation
-
-1. Open your Airtable base
-2. Go to **Automations** tab
-3. Click **Create automation**
-
-### Step 2: Configure Trigger
-
-1. Choose trigger type: **When record matches conditions**
-2. Select your table
-3. Add condition: `Status` equals `Approved` (or your trigger value)
-
-### Step 3: Add Script Action
-
-1. Add action: **Run a script**
-2. Add input variables:
-   - `recordId`: The record ID from the trigger
-3. Paste this script:
+## Airtable Script
 
 ```javascript
-// AirPDF Webhook Script for Airtable
+// Airtable Automation - PDF Generation Trigger
+// Trigger: When record is created
+// Input: recordId = Record ID
 
-// Configuration - Update these values
-const AIRPDF_ENDPOINT = 'https://your-domain.pages.dev/api/generate';
-const TEMPLATE_ID = 'template_xxx'; // From AirPDF template settings
-const CONNECTION_ID = 'connection_xxx'; // From AirPDF connections
+let config = input.config();
+let recordId = config.recordId;
 
-// Get the record ID from trigger
-const recordId = input.config().recordId;
+const WEBHOOK_URL = 'https://your-app.pages.dev/api/webhook/generate-pdf';
+const WEBHOOK_SECRET = 'your-secret-here';
 
-// Make the webhook request
-const response = await fetch(AIRPDF_ENDPOINT, {
-  method: 'POST',
-  headers: {
-    'Content-Type': 'application/json',
-  },
-  body: JSON.stringify({
-    templateId: TEMPLATE_ID,
-    recordId: recordId,
-    connectionId: CONNECTION_ID,
-  }),
-});
+let table = base.getTable('Customer Applications');
+let record = await table.selectRecordAsync(recordId);
 
-// Check response
-if (!response.ok) {
-  const error = await response.text();
-  throw new Error(`AirPDF request failed: ${error}`);
+let applicantType = record.getCellValueAsString('Applicant Type');
+let purpose = record.getCellValueAsString('Purpose');
+
+// Determine which PDFs to generate
+let templates = [];
+if (applicantType === 'Individual' || applicantType === 'Care-of') {
+    templates.push('Personal Info');
+}
+if (purpose === 'Crisis Shield') {
+    templates.push('Weekly Sales');
 }
 
-const result = await response.json();
-console.log('PDF generated:', result.pdfUrl);
+// Generate each PDF
+for (let templateName of templates) {
+    console.log(`Generating: ${templateName}`);
+    
+    let response = await fetch(WEBHOOK_URL, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-Webhook-Secret': WEBHOOK_SECRET
+        },
+        body: JSON.stringify({
+            template_name: templateName,
+            record_id: recordId
+        })
+    });
+    
+    let result = await response.json();
+    console.log(`${templateName}: ${result.success ? '✓' : result.error}`);
+}
 
-// Output for next steps
-output.set('pdfUrl', result.pdfUrl);
-output.set('success', true);
+output.set('status', 'complete');
 ```
-
-### Step 4: Test and Activate
-
-1. Test the automation with a sample record
-2. Verify the PDF appears in the output field
-3. Turn on the automation
 
 ---
 
-## Finding Your IDs
+## Response
 
-### Template ID
-1. Open the template in AirPDF editor
-2. Look at the URL: `?id=template_xxx`
-3. Or find it in the export file
+### Success
+```json
+{
+  "success": true,
+  "pdf_url": "/api/files/generated/...",
+  "template_name": "Personal Info",
+  "record_id": "recXXX"
+}
+```
 
-### Connection ID
-1. Go to AirPDF → Connections
-2. Click on your connection
-3. The ID is in the URL
+### Error
+```json
+{
+  "success": false,
+  "error": "Template not found"
+}
+```
+
+---
+
+## Prerequisites
+
+Templates must be configured in PDFit with:
+- PDF uploaded
+- Field mappings set
+- Airtable connection linked
+- Base/table selected
+- Output field configured
 
 ---
 
 ## Troubleshooting
 
-### "Template not found"
-- Verify the templateId is correct
-- Ensure the template is published/active
-
-### "Connection not found"
-- Verify the connectionId is correct
-- Ensure the connection is still valid
-
-### "Field mapping error"
-- Check that Airtable field names match the mappings in your template
-- Field names are case-sensitive
-
-### Rate Limits
-- Airtable automation scripts have a 30-second timeout
-- PDF generation typically takes 5-15 seconds
-
----
-
-## Response Format
-
-### Success Response
-
-```json
-{
-  "success": true,
-  "pdfUrl": "https://r2.your-domain.com/generated/xxx.pdf",
-  "recordId": "recXXXXXXXX"
-}
-```
-
-### Error Response
-
-```json
-{
-  "success": false,
-  "error": "Error message here"
-}
-```
+| Error | Solution |
+|-------|----------|
+| "Invalid webhook secret" | Check `X-Webhook-Secret` header matches `WEBHOOK_SECRET` env var |
+| "Template not found" | Verify template name matches exactly (case-sensitive) |
+| "Connection not found" | Template needs Airtable connection configured |
+| "PDF template file not found" | Re-upload PDF in template editor |
