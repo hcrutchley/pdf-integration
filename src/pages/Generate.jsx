@@ -538,10 +538,36 @@ export default function Generate() {
         {/* Results */}
         {results.length > 0 && (
           <Card className="bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700">
-            <CardHeader>
+            <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle className="text-slate-900 dark:text-slate-100">
                 Generation Results
               </CardTitle>
+              {results.filter(r => r.success && r.pdfUrl).length > 0 && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    // Download all successful PDFs
+                    const successfulResults = results.filter(r => r.success && r.pdfUrl);
+                    successfulResults.forEach((result, index) => {
+                      // Stagger downloads to avoid browser blocking
+                      setTimeout(() => {
+                        const link = document.createElement('a');
+                        link.href = result.pdfUrl;
+                        link.download = `${result.templateName}_${result.recordId}.pdf`;
+                        link.target = '_blank';
+                        document.body.appendChild(link);
+                        link.click();
+                        document.body.removeChild(link);
+                      }, index * 300);
+                    });
+                    toast.success(`Downloading ${successfulResults.length} PDFs...`);
+                  }}
+                >
+                  <Download className="h-4 w-4 mr-2" />
+                  Download All ({results.filter(r => r.success && r.pdfUrl).length})
+                </Button>
+              )}
             </CardHeader>
             <CardContent>
               <div className="space-y-2 max-h-[300px] overflow-y-auto">
