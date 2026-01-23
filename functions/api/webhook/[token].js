@@ -63,6 +63,14 @@ export async function onRequestPost(context) {
         const body = await request.json();
         const { template_name, record_id } = body;
 
+        // Check for test mode (use draft version)
+        const url = new URL(request.url);
+        const isTestMode = url.searchParams.get('test') === 'true';
+
+        if (isTestMode) {
+            console.log(`[Webhook] TEST MODE - Using draft version`);
+        }
+
         if (!template_name || !record_id) {
             return Response.json(
                 { success: false, error: 'Missing template_name or record_id' },
@@ -70,7 +78,7 @@ export async function onRequestPost(context) {
             );
         }
 
-        console.log(`[Webhook] Generating PDF: template="${template_name}", record="${record_id}"`);
+        console.log(`[Webhook] Generating PDF: template="${template_name}", record="${record_id}"${isTestMode ? ' (TEST MODE)' : ''}`);
 
         // ========== 2. FIND TEMPLATE BY NAME (scoped to user/org) ==========
         let templateQuery = `
@@ -101,8 +109,16 @@ export async function onRequestPost(context) {
 
         console.log(`[Webhook] Found template: ${template.name}`);
 
+        // Select draft or live version based on test mode
+        const pdfUrl = isTestMode
+            ? (template.draft_pdf_url || template.pdf_url)
+            : template.pdf_url;
+        const fields = isTestMode
+            ? (template.draft_fields || template.fields || [])
+            : (template.fields || []);
+
         // Validate required config
-        if (!template.pdf_url) {
+        if (!pdfUrl) {
             return Response.json(
                 { success: false, error: 'Template has no PDF file configured' },
                 { status: 400, headers: corsHeaders }
@@ -168,7 +184,7 @@ export async function onRequestPost(context) {
         console.log(`[Webhook] Fetched record with ${Object.keys(recordData).length} fields`);
 
         // ========== 5. FETCH PDF TEMPLATE FROM R2 ==========
-        let r2Key = template.pdf_url;
+        let r2Key = pdfUrl;
         if (r2Key.startsWith('/api/files/')) {
             r2Key = decodeURIComponent(r2Key.replace('/api/files/', ''));
         }
@@ -197,7 +213,6 @@ export async function onRequestPost(context) {
         const courier = await pdfDoc.embedFont(StandardFonts.Courier);
 
         const pages = pdfDoc.getPages();
-        const fields = template.fields || [];
 
         console.log(`[Webhook] Processing ${fields.length} fields`);
 
@@ -380,7 +395,7 @@ export async function onRequestPost(context) {
             httpMetadata: { contentType: 'application/pdf' },
         });
 
-        const pdfUrl = `${new URL(request.url).origin}/api/files/${encodeURIComponent(outputKey)}`;
+        const outputPdfUrl = `${new URL(request.url).origin}/api/files/${encodeURIComponent(outputKey)}`;
         console.log(`[Webhook] Uploaded: ${outputKey}`);
 
         // ========== 8. ATTACH TO AIRTABLE ==========
@@ -395,7 +410,7 @@ export async function onRequestPost(context) {
                 },
                 body: JSON.stringify({
                     fields: {
-                        [template.output_field]: [{ url: pdfUrl, filename: `${template.name}_${record_id}.pdf` }]
+                        [template.output_field]: [{ url: outputPdfUrl, filename: `${template.name}_${record_id}.pdf` }]
                     }
                 })
             });
@@ -425,7 +440,7 @@ export async function onRequestPost(context) {
                 template_name: template.name,
                 airtable_record_id: record_id,
                 status: 'completed',
-                pdf_url: pdfUrl,
+                pdf_url: outputPdfUrl,
                 webhook_id: webhook.id,
                 user_id: webhook.user_id
             }),
@@ -441,7 +456,7 @@ export async function onRequestPost(context) {
         console.log(`[Webhook] Success!`);
 
         return Response.json(
-            { success: true, pdf_url: pdfUrl, template_name: template.name, record_id },
+            { success: true, pdf_url: outputPdfUrl, template_name: template.name, record_id },
             { status: 200, headers: corsHeaders }
         );
 

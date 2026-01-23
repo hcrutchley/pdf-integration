@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -37,6 +37,7 @@ export default function TemplateEditor() {
   const [guides, setGuides] = useState({ vertical: [], horizontal: [] });
   const [isSyncing, setIsSyncing] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
+  const [isPublishing, setIsPublishing] = useState(false);
 
   // Dirty flag for tracking unsaved changes
   const isDirtyRef = useRef(false);
@@ -59,6 +60,46 @@ export default function TemplateEditor() {
     queryFn: () => db.connections.getAll()
   });
 
+  // Check if there are unpublished changes
+  const hasUnpublishedChanges = useMemo(() => {
+    if (!template) return false;
+
+    // Check if draft fields differ from published fields
+    const draftFields = template.draft_fields;
+    const publishedFields = template.fields;
+    const draftPdfUrl = template.draft_pdf_url;
+    const publishedPdfUrl = template.pdf_url;
+
+    // If there are draft fields that differ from published
+    if (draftFields && JSON.stringify(draftFields) !== JSON.stringify(publishedFields)) {
+      return true;
+    }
+
+    // If there's a draft PDF that differs
+    if (draftPdfUrl && draftPdfUrl !== publishedPdfUrl) {
+      return true;
+    }
+
+    // Check if template has never been published
+    if (!template.published_at && (template.fields?.length > 0 || template.pdf_url)) {
+      return true;
+    }
+
+    return false;
+  }, [template]);
+
+  // Get the working fields (draft if exists, otherwise published)
+  const workingFields = useMemo(() => {
+    if (!template) return [];
+    return template.draft_fields || template.fields || [];
+  }, [template]);
+
+  // Get the working PDF URL (draft if exists, otherwise published)
+  const workingPdfUrl = useMemo(() => {
+    if (!template) return null;
+    return template.draft_pdf_url || template.pdf_url;
+  }, [template]);
+
   // Silent sync to server (no toast)
   const syncToServer = useCallback(async (showToast = false) => {
     if (!templateId) return;
@@ -76,9 +117,17 @@ export default function TemplateEditor() {
         guides // Include current guides state
       };
 
-      // Ensure pdf_url is never lost
+      // Save to draft_fields instead of fields
+      if (fullData.fields && !fullData.draft_fields) {
+        fullData.draft_fields = fullData.fields;
+      }
+
+      // Ensure pdf_url handling
       if (!fullData.pdf_url && latestTemplate?.pdf_url) {
         fullData.pdf_url = latestTemplate.pdf_url;
+      }
+      if (!fullData.draft_pdf_url && latestTemplate?.draft_pdf_url) {
+        fullData.draft_pdf_url = latestTemplate.draft_pdf_url;
       }
 
       const { id, created_date, updated_date, ...sanitizedData } = fullData;
@@ -91,7 +140,7 @@ export default function TemplateEditor() {
       queryClient.invalidateQueries(['template', templateId]);
 
       if (showToast) {
-        toast.success('Template saved successfully');
+        toast.success('Draft saved successfully');
       }
     } catch (error) {
       console.error('Sync failed:', error);
@@ -102,6 +151,78 @@ export default function TemplateEditor() {
       setIsSyncing(false);
     }
   }, [templateId, queryClient, guides]);
+
+  // Publish handler - copies draft to live
+  const handlePublish = useCallback(async () => {
+    if (!templateId || !template) return;
+
+    setIsPublishing(true);
+    try {
+      const updates = {
+        // Copy draft fields to published
+        fields: template.draft_fields || template.fields || [],
+        // Copy draft PDF to published
+        pdf_url: template.draft_pdf_url || template.pdf_url,
+        // Clear draft state
+        draft_fields: null,
+        draft_pdf_url: null,
+        // Set published timestamp
+        published_at: new Date().toISOString(),
+        // Mark as enabled
+        enabled: true
+      };
+
+      await db.templates.update(templateId, updates);
+
+      // Update cache
+      queryClient.setQueryData(['template', templateId], (prev) => ({
+        ...prev,
+        ...updates
+      }));
+
+      queryClient.invalidateQueries(['templates']);
+      queryClient.invalidateQueries(['template', templateId]);
+
+      toast.success('Template published! Changes are now live.');
+    } catch (error) {
+      console.error('Publish failed:', error);
+      toast.error('Failed to publish template');
+    } finally {
+      setIsPublishing(false);
+    }
+  }, [templateId, template, queryClient]);
+
+  // Discard draft handler - reverts to published version
+  const handleDiscardDraft = useCallback(async () => {
+    if (!templateId || !template) return;
+
+    if (!confirm('Are you sure you want to discard all unpublished changes? This cannot be undone.')) {
+      return;
+    }
+
+    try {
+      const updates = {
+        draft_fields: null,
+        draft_pdf_url: null
+      };
+
+      await db.templates.update(templateId, updates);
+
+      // Update cache
+      queryClient.setQueryData(['template', templateId], (prev) => ({
+        ...prev,
+        ...updates
+      }));
+
+      queryClient.invalidateQueries(['templates']);
+      queryClient.invalidateQueries(['template', templateId]);
+
+      toast.success('Draft discarded. Reverted to published version.');
+    } catch (error) {
+      console.error('Discard failed:', error);
+      toast.error('Failed to discard changes');
+    }
+  }, [templateId, template, queryClient]);
 
   // Autosave interval (60 seconds)
   useEffect(() => {
@@ -217,11 +338,12 @@ export default function TemplateEditor() {
   };
 
   const handleDetectFields = async () => {
-    if (!template?.pdf_url) return;
+    const pdfUrl = workingPdfUrl;
+    if (!pdfUrl) return;
 
     setIsDetecting(true);
     try {
-      const detectedFields = await aiService.detectPDFFields(template.pdf_url);
+      const detectedFields = await aiService.detectPDFFields(pdfUrl);
 
       const fieldsWithIds = detectedFields.map((field, index) => ({
         ...field,
@@ -235,10 +357,10 @@ export default function TemplateEditor() {
         underline: template.default_underline || false
       }));
 
-      // Update cache and mark dirty
+      // Update cache with draft_fields and mark dirty
       queryClient.setQueryData(['template', templateId], (prev) => ({
         ...prev,
-        fields: fieldsWithIds
+        draft_fields: fieldsWithIds
       }));
       isDirtyRef.current = true;
     } catch (error) {
@@ -249,22 +371,38 @@ export default function TemplateEditor() {
     }
   };
 
-  // Optimistic update helper - updates cache and marks dirty
+  // Optimistic update helper - updates cache and marks dirty (saves to draft)
   const updateCache = useCallback((updates) => {
     queryClient.setQueryData(['template', templateId], (prev) => {
-      const newData = { ...prev, ...updates };
-      // Safety: preserve pdf_url
-      if (!newData.pdf_url && (prev?.pdf_url || template?.pdf_url)) {
-        newData.pdf_url = prev?.pdf_url || template?.pdf_url;
+      const newData = { ...prev };
+
+      // If updating fields, save to draft_fields
+      if (updates.fields) {
+        newData.draft_fields = updates.fields;
+        delete updates.fields;
       }
+
+      // If updating pdf_url directly (like upload), save to draft_pdf_url
+      if (updates.pdf_url && !updates.draft_pdf_url) {
+        newData.draft_pdf_url = updates.pdf_url;
+        delete updates.pdf_url;
+      }
+
+      Object.assign(newData, updates);
+
+      // Safety: preserve pdf_url
+      if (!newData.pdf_url && prev?.pdf_url) {
+        newData.pdf_url = prev.pdf_url;
+      }
+
       return newData;
     });
     isDirtyRef.current = true;
-  }, [queryClient, templateId, template?.pdf_url]);
+  }, [queryClient, templateId]);
 
   const handleUpdateField = useCallback((fieldId, updates) => {
     const currentData = queryClient.getQueryData(['template', templateId]);
-    const currentFields = currentData?.fields || template?.fields || [];
+    const currentFields = currentData?.draft_fields || currentData?.fields || template?.fields || [];
 
     const updatedFields = currentFields.map(f =>
       f.id === fieldId ? { ...f, ...updates } : f
@@ -275,7 +413,7 @@ export default function TemplateEditor() {
 
   const handleDeleteField = useCallback((fieldId) => {
     const currentData = queryClient.getQueryData(['template', templateId]);
-    const currentFields = currentData?.fields || template?.fields || [];
+    const currentFields = currentData?.draft_fields || currentData?.fields || template?.fields || [];
     const updatedFields = currentFields.filter(f => f.id !== fieldId);
 
     if (selectedField?.id === fieldId) {
@@ -287,7 +425,7 @@ export default function TemplateEditor() {
 
   const handleAddField = useCallback((newField) => {
     const currentData = queryClient.getQueryData(['template', templateId]);
-    const currentFields = currentData?.fields || template?.fields || [];
+    const currentFields = currentData?.draft_fields || currentData?.fields || template?.fields || [];
     const updatedFields = [...currentFields, newField];
 
     updateCache({ fields: updatedFields });
@@ -295,7 +433,7 @@ export default function TemplateEditor() {
 
   const handleBulkFieldAdd = useCallback((newFields) => {
     const currentData = queryClient.getQueryData(['template', templateId]);
-    const currentFields = currentData?.fields || template?.fields || [];
+    const currentFields = currentData?.draft_fields || currentData?.fields || template?.fields || [];
     const updatedFields = [...currentFields, ...newFields];
 
     updateCache({ fields: updatedFields });
@@ -319,9 +457,10 @@ export default function TemplateEditor() {
         selectedTestRecord
       );
 
+      // Use working (draft) fields and PDF for preview
       const pdfBlob = await pdfService.generatePDF(
-        template.pdf_url,
-        template.fields || [],
+        workingPdfUrl,
+        workingFields,
         record.fields
       );
 
@@ -349,14 +488,14 @@ export default function TemplateEditor() {
 
   // Export handler
   const handleExport = useCallback(async () => {
-    if (!template || !template.pdf_url) {
+    if (!template || !workingPdfUrl) {
       toast.error('Cannot export: Template has no PDF');
       return;
     }
 
     setIsExporting(true);
     try {
-      await exportTemplate(template, template.pdf_url);
+      await exportTemplate({ ...template, fields: workingFields }, workingPdfUrl);
       toast.success('Template exported successfully');
     } catch (error) {
       console.error('Export failed:', error);
@@ -364,10 +503,19 @@ export default function TemplateEditor() {
     } finally {
       setIsExporting(false);
     }
-  }, [template]);
+  }, [template, workingPdfUrl, workingFields]);
 
   const [settingsOpen, setSettingsOpen] = useState(false);
 
+  // Create a modified template object that uses draft fields for display
+  const displayTemplate = useMemo(() => {
+    if (!template) return null;
+    return {
+      ...template,
+      fields: workingFields,
+      pdf_url: workingPdfUrl
+    };
+  }, [template, workingFields, workingPdfUrl]);
 
   if (isLoading) {
     return (
@@ -391,16 +539,21 @@ export default function TemplateEditor() {
       onSave={handleManualSave}
       onPreview={handlePreview}
       onExport={handleExport}
+      onPublish={handlePublish}
+      onDiscardDraft={handleDiscardDraft}
       isPreviewing={isPreviewing}
       canPreview={!!(selectedTestRecord && template.airtable_connection_id)}
       isSaving={isSyncing}
       isExporting={isExporting}
+      isPublishing={isPublishing}
+      hasUnpublishedChanges={hasUnpublishedChanges}
+      publishedAt={template.published_at}
       onSettingsToggle={() => setSettingsOpen(!settingsOpen)}
       settingsOpen={settingsOpen}
     >
 
       <DesignView
-        template={template}
+        template={displayTemplate}
         onUpdateField={handleUpdateField}
         onDeleteField={handleDeleteField}
         handleAddField={handleAddField}
@@ -430,4 +583,3 @@ export default function TemplateEditor() {
     </EditorLayout>
   );
 }
-

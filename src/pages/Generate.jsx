@@ -60,7 +60,15 @@ export default function Generate() {
     return t.organization_id === contextFilter.organization_id;
   });
 
-  const activeTemplates = filteredTemplates.filter(t => t.status === 'active');
+  // Show templates that are enabled and have PDF and connection configured
+  // Templates must be published (enabled=true) to show in Generate page
+  const activeTemplates = filteredTemplates.filter(t =>
+    t.enabled !== false && // Enabled by default, explicitly check for false
+    (t.pdf_url || t.draft_pdf_url) && // Has a PDF (published or draft)
+    t.airtable_connection_id &&
+    t.airtable_base_id &&
+    t.airtable_table_name
+  );
 
   // Get the first selected template for connection info
   const primaryTemplate = useMemo(() => {
@@ -316,8 +324,8 @@ export default function Generate() {
                     key={template.id}
                     onClick={() => toggleTemplate(template.id)}
                     className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-all ${selectedTemplates.includes(template.id)
-                        ? 'border-teal-500 bg-teal-50 dark:bg-teal-900/20'
-                        : 'border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600'
+                      ? 'border-teal-500 bg-teal-50 dark:bg-teal-900/20'
+                      : 'border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600'
                       }`}
                   >
                     <Checkbox checked={selectedTemplates.includes(template.id)} />
@@ -472,8 +480,8 @@ export default function Generate() {
                     key={record.id}
                     onClick={() => toggleRecord(record.id)}
                     className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-all ${selectedRecords.includes(record.id)
-                        ? 'border-teal-500 bg-teal-50 dark:bg-teal-900/20'
-                        : 'border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600'
+                      ? 'border-teal-500 bg-teal-50 dark:bg-teal-900/20'
+                      : 'border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600'
                       }`}
                   >
                     <Checkbox checked={selectedRecords.includes(record.id)} />
@@ -541,8 +549,8 @@ export default function Generate() {
                   <div
                     key={index}
                     className={`flex items-center justify-between p-3 rounded-lg border ${result.success
-                        ? 'border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-900/20'
-                        : 'border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20'
+                      ? 'border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-900/20'
+                      : 'border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20'
                       }`}
                   >
                     <div className="flex items-center gap-3">

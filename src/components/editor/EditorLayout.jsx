@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { ArrowLeft, Save, Eye, Settings, PenTool, Database, Zap, ChevronDown, ChevronRight, Download } from 'lucide-react';
+import { ArrowLeft, Save, Eye, Settings, PenTool, Database, Zap, ChevronDown, ChevronRight, Download, Upload, Rocket, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { useNavigate } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
@@ -10,17 +11,21 @@ export default function EditorLayout({
     onSave,
     onPreview,
     onExport,
+    onPublish,
+    onDiscardDraft,
     isPreviewing,
     canPreview,
     isSaving,
     isExporting,
+    isPublishing,
+    hasUnpublishedChanges,
+    publishedAt,
     children,
     // Settings drawer toggle
     onSettingsToggle,
     settingsOpen
 }) {
     const navigate = useNavigate();
-
 
     return (
         <div className="flex flex-col h-screen bg-slate-50 dark:bg-slate-950 overflow-hidden">
@@ -39,9 +44,21 @@ export default function EditorLayout({
                     </Button>
                     <div className="flex flex-col">
                         <span className="text-[10px] font-medium text-slate-400 uppercase tracking-wider">Template</span>
-                        <h1 className="font-semibold text-sm text-slate-900 dark:text-slate-100 truncate max-w-[180px]">
-                            {templateName}
-                        </h1>
+                        <div className="flex items-center gap-2">
+                            <h1 className="font-semibold text-sm text-slate-900 dark:text-slate-100 truncate max-w-[180px]">
+                                {templateName}
+                            </h1>
+                            {hasUnpublishedChanges && (
+                                <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 bg-amber-50 dark:bg-amber-900/20 border-amber-300 dark:border-amber-700 text-amber-700 dark:text-amber-300">
+                                    Draft
+                                </Badge>
+                            )}
+                            {!hasUnpublishedChanges && publishedAt && (
+                                <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 bg-green-50 dark:bg-green-900/20 border-green-300 dark:border-green-700 text-green-700 dark:text-green-300">
+                                    Live
+                                </Badge>
+                            )}
+                        </div>
                     </div>
                 </div>
 
@@ -93,17 +110,50 @@ export default function EditorLayout({
                         onClick={onSave}
                         disabled={isSaving}
                         size="sm"
-                        className="bg-teal-600 hover:bg-teal-700 text-white shadow-sm"
+                        variant="outline"
                     >
                         <Save className="h-4 w-4 mr-1" />
-                        {isSaving ? 'Saving...' : 'Save'}
+                        {isSaving ? 'Saving...' : 'Save Draft'}
+                    </Button>
+
+                    {/* Publish Button */}
+                    <Button
+                        onClick={onPublish}
+                        disabled={isPublishing || !hasUnpublishedChanges}
+                        size="sm"
+                        className={cn(
+                            "shadow-sm",
+                            hasUnpublishedChanges
+                                ? "bg-green-600 hover:bg-green-700 text-white"
+                                : "bg-slate-200 text-slate-500"
+                        )}
+                    >
+                        <Rocket className="h-4 w-4 mr-1" />
+                        {isPublishing ? 'Publishing...' : 'Publish'}
                     </Button>
                 </div>
             </header>
 
+            {/* Draft Warning Banner */}
+            {hasUnpublishedChanges && (
+                <div className="bg-amber-50 dark:bg-amber-900/20 border-b border-amber-200 dark:border-amber-800 px-4 py-2 flex items-center justify-between">
+                    <div className="flex items-center gap-2 text-sm text-amber-700 dark:text-amber-300">
+                        <AlertCircle className="h-4 w-4" />
+                        <span>You have unpublished changes. Click <strong>Publish</strong> to make them live.</span>
+                    </div>
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={onDiscardDraft}
+                        className="text-amber-600 hover:text-amber-700 hover:bg-amber-100 dark:hover:bg-amber-900/30"
+                    >
+                        Discard Changes
+                    </Button>
+                </div>
+            )}
+
             {/* Main Content Area */}
             <main className="flex-1 overflow-hidden relative">
-
                 {children}
             </main>
         </div>

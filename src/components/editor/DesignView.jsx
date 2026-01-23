@@ -362,31 +362,78 @@ export default function DesignView({
                     {/* Automation Tab */}
                     {panelTab === 'automation' && (
                         <div className="p-4 space-y-4">
-                            <div>
-                                <h3 className="text-xs font-semibold text-slate-500 uppercase mb-3">Trigger Conditions</h3>
-                                <div className="grid grid-cols-2 gap-3">
+                            {/* Enable Toggle */}
+                            <div className="p-3 bg-slate-50 dark:bg-slate-900 rounded-lg">
+                                <div className="flex items-center justify-between">
                                     <div>
-                                        <Label className="text-xs text-slate-500 mb-1 block">Field Name</Label>
-                                        <Input
-                                            value={template.trigger_field || ''}
-                                            onChange={(e) => onSettingsSave({ trigger_field: e.target.value })}
-                                            placeholder="e.g. Status"
-                                            className="h-8 text-sm"
-                                        />
+                                        <Label className="text-sm font-medium text-slate-900 dark:text-slate-100">Enable Template</Label>
+                                        <p className="text-xs text-slate-500 mt-0.5">Allow PDF generation via Generate page and webhooks</p>
                                     </div>
-                                    <div>
-                                        <Label className="text-xs text-slate-500 mb-1 block">Equals Value</Label>
-                                        <Input
-                                            value={template.trigger_value || ''}
-                                            onChange={(e) => onSettingsSave({ trigger_value: e.target.value })}
-                                            placeholder="e.g. Approved"
-                                            className="h-8 text-sm"
-                                        />
-                                    </div>
+                                    <Checkbox
+                                        checked={template.enabled !== false}
+                                        onCheckedChange={(checked) => onSettingsSave({ enabled: checked })}
+                                    />
                                 </div>
-                                <p className="text-xs text-slate-400 mt-1.5">Generate PDF when this condition is met</p>
                             </div>
 
+                            {/* Trigger Mode */}
+                            <div className="pt-2">
+                                <Label className="text-xs font-semibold text-slate-500 uppercase mb-2 block">Trigger Mode</Label>
+                                <div className="grid grid-cols-2 gap-2">
+                                    <button
+                                        type="button"
+                                        onClick={() => onSettingsSave({ trigger_mode: 'webhook' })}
+                                        className={`p-3 rounded-lg border text-left transition-all ${template.trigger_mode !== 'polling'
+                                                ? 'border-teal-500 bg-teal-50 dark:bg-teal-900/20'
+                                                : 'border-slate-200 dark:border-slate-700 hover:border-slate-300'
+                                            }`}
+                                    >
+                                        <p className="text-sm font-medium text-slate-900 dark:text-slate-100">Webhook</p>
+                                        <p className="text-xs text-slate-500 mt-0.5">Trigger via API call</p>
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => onSettingsSave({ trigger_mode: 'polling' })}
+                                        className={`p-3 rounded-lg border text-left transition-all ${template.trigger_mode === 'polling'
+                                                ? 'border-teal-500 bg-teal-50 dark:bg-teal-900/20'
+                                                : 'border-slate-200 dark:border-slate-700 hover:border-slate-300'
+                                            }`}
+                                    >
+                                        <p className="text-sm font-medium text-slate-900 dark:text-slate-100">Polling</p>
+                                        <p className="text-xs text-slate-500 mt-0.5">Check Airtable periodically</p>
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Trigger Conditions (for polling mode) */}
+                            {template.trigger_mode === 'polling' && (
+                                <div className="pt-3 border-t border-slate-200 dark:border-slate-700">
+                                    <h3 className="text-xs font-semibold text-slate-500 uppercase mb-3">Polling Trigger</h3>
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div>
+                                            <Label className="text-xs text-slate-500 mb-1 block">Field Name</Label>
+                                            <Input
+                                                value={template.trigger_field || ''}
+                                                onChange={(e) => onSettingsSave({ trigger_field: e.target.value })}
+                                                placeholder="e.g. Status"
+                                                className="h-8 text-sm"
+                                            />
+                                        </div>
+                                        <div>
+                                            <Label className="text-xs text-slate-500 mb-1 block">Equals Value</Label>
+                                            <Input
+                                                value={template.trigger_value || ''}
+                                                onChange={(e) => onSettingsSave({ trigger_value: e.target.value })}
+                                                placeholder="e.g. Approved"
+                                                className="h-8 text-sm"
+                                            />
+                                        </div>
+                                    </div>
+                                    <p className="text-xs text-slate-400 mt-1.5">Generate PDF when this condition is met</p>
+                                </div>
+                            )}
+
+                            {/* Output */}
                             <div className="pt-3 border-t border-slate-200 dark:border-slate-700">
                                 <h3 className="text-xs font-semibold text-slate-500 uppercase mb-3">Output</h3>
                                 <div>
@@ -397,22 +444,8 @@ export default function DesignView({
                                         placeholder="e.g. Generated PDF"
                                         className="h-8 text-sm"
                                     />
-                                    <p className="text-xs text-slate-400 mt-1.5">Where to save the generated PDF</p>
+                                    <p className="text-xs text-slate-400 mt-1.5">Airtable field for uploading generated PDF</p>
                                 </div>
-                            </div>
-
-                            <div className="pt-3 border-t border-slate-200 dark:border-slate-700">
-                                <div className="flex items-center space-x-2">
-                                    <Checkbox
-                                        id="setup-polling"
-                                        checked={setupPollingNow}
-                                        onCheckedChange={setSetupPollingNow}
-                                    />
-                                    <Label htmlFor="setup-polling" className="cursor-pointer text-sm text-slate-600 dark:text-slate-300">
-                                        Enable active polling
-                                    </Label>
-                                </div>
-                                <p className="text-xs text-slate-400 mt-1.5 ml-6">Check Airtable periodically for triggers</p>
                             </div>
                         </div>
                     )}
