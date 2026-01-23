@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Bold, Italic, Underline, Layout, Type, Database, Info } from 'lucide-react';
+import { Bold, Italic, Underline, Layout, Type, Database, Info, Copy, Check } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   Accordion,
@@ -18,6 +18,7 @@ export default function FieldPropertiesPanel({
   airtableFields = []
 }) {
   const [localField, setLocalField] = useState(field);
+  const [copiedColor, setCopiedColor] = useState(false);
   const updateTimeoutRef = useRef(null);
 
   useEffect(() => {
@@ -210,6 +211,19 @@ export default function FieldPropertiesPanel({
                           placeholder="#000000"
                           className="h-8 flex-1 font-mono text-xs"
                         />
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-8 w-8 p-0"
+                          onClick={() => {
+                            navigator.clipboard.writeText(localField?.font_color || '#000000');
+                            setCopiedColor(true);
+                            setTimeout(() => setCopiedColor(false), 1500);
+                          }}
+                          title="Copy hex code"
+                        >
+                          {copiedColor ? <Check className="h-3.5 w-3.5 text-green-500" /> : <Copy className="h-3.5 w-3.5" />}
+                        </Button>
                       </div>
                     </div>
                   </div>
